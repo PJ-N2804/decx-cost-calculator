@@ -57,6 +57,20 @@ const DEFAULT_PRICING = {
   storage_per_gb: 0.023
 };
 
+const YELLOW_AI_PRICING = {
+  platform_fee: 10000,
+  live_chat_per_conversation: 0.04,
+  chatbot_per_conversation: 0.04,
+  conv_ivr_per_min_tiers: [
+    { limit: 200000, price: 0.18 },
+    { limit: 400000, price: 0.16 },
+    { limit: 600000, price: 0.14 },
+    { limit: 800000, price: 0.12 },
+    { limit: 1000000, price: 0.10 },
+    { limit: Infinity, price: 0.08 },
+  ]
+};
+
 const REGIONAL_PRICING = {
   'US': {
     currency: '$',
@@ -104,6 +118,13 @@ const FEATURES_CATALOG = {
   agentAssist: { label: 'Agent Assist (Q/Wisdom)', channels: ['Voice', 'Chat'], icon: BrainCircuit },
   bedrock: { label: 'Agentic Framework (Bedrock)', channels: ['Voice', 'Chat', 'Email'], icon: Server },
   storage: { label: 'Recording / Archiving', channels: ['Voice', 'Chat', 'Email'], icon: Database },
+};
+
+const FEATURES_CATALOG_YELLOW_AI = {
+  convIVR: { label: 'Conversational IVR', channels: ['Voice'], icon: Cpu },
+  chatbot: { label: 'Chatbot', channels: ['Chat'], icon: Cpu },
+  liveChat: { label: 'Live Chat', channels: ['Chat'], icon: MessageSquare },
+  agentic: { label: 'Agentic Framework', channels: ['Voice', 'Chat'], icon: Server },
 };
 
 const DEFAULT_ROLES = [
@@ -222,7 +243,7 @@ const KnowledgeBase = ({ pricing }) => (
   </div>
 );
 
-const CostBreakdownSidebar = ({ isOpen, onClose, channels, pricing }) => {
+const CostBreakdownSidebar = ({ isOpen, onClose, channels, pricing, techStack }) => {
   const curr = pricing.currency || '$';
 
   return (
@@ -249,15 +270,120 @@ const CostBreakdownSidebar = ({ isOpen, onClose, channels, pricing }) => {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50">
+          
+          {/* Platform Fee Display for Yellow.ai */}
+          {techStack === 'yellow' && channels.length > 0 && (
+             <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm bg-gradient-to-r from-yellow-50 to-white">
+                <div className="flex justify-between items-center">
+                    <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                      <Server size={14} className="text-yellow-600"/> Platform Fee
+                    </h4>
+                    <span className="font-mono font-bold text-slate-800">{curr}{YELLOW_AI_PRICING.platform_fee.toLocaleString()}</span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1 pl-6">Base platform license fee</p>
+             </div>
+          )}
+
           {channels.length === 0 ? (
             <div className="text-center text-slate-400 py-12 flex flex-col items-center">
               <Info size={32} className="mb-2 opacity-50"/>
               <p>Add channels to see cost breakdown.</p>
             </div>
           ) : channels.map((ch, idx) => {
-            const liveVol = ch.volume * ((100 - ch.containment) / 100);
+            const containment = ch.containment || 0;
+            const liveVol = ch.volume * ((100 - containment) / 100);
             const modelPricing = BEDROCK_MODELS[ch.bedrockModel || 'sonnet'];
             
+            // --- YELLOW AI SPECIFIC LOGIC ---
+            if (techStack === 'yellow') {
+                const agenticMult = ch.features.includes('agentic') ? 1.25 : 1.0;
+                
+                return (
+                    <div key={ch.id} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
+                          <h4 className="font-bold text-slate-800 flex items-center gap-2 text-base">
+                            <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-extrabold">{idx + 1}</span>
+                            {ch.name} <span className="text-xs font-normal text-slate-400 uppercase tracking-wider ml-1">({ch.type})</span>
+                          </h4>
+                          <span className="text-xs bg-slate-100 px-2 py-1 rounded text-slate-600 font-mono font-medium">
+                            {ch.volume.toLocaleString()} vol
+                          </span>
+                        </div>
+                        <div className="space-y-3 text-sm text-slate-600">
+                            {/* IVR */}
+                            {ch.type === 'Voice' && ch.features.includes('convIVR') && (
+                                <div className="flex justify-between items-center group">
+                                  <div className="flex flex-col">
+                                    <span className="font-semibold text-purple-700">Conversational IVR</span>
+                                    <span className="text-[10px] text-slate-400 font-medium">Tiered Pricing</span>
+                                  </div>
+                                  <div className="text-right">
+                                    <span className="block font-mono font-bold text-purple-700">
+                                       {(() => {
+                                            const totalMinutes = ch.volume * ch.aht;
+                                            let remainingMinutes = totalMinutes;
+                                            let voiceCost = 0;
+                                            pricing.conv_ivr_per_min_tiers.forEach((tier, index) => {
+                                                const prevTierLimit = index === 0 ? 0 : pricing.conv_ivr_per_min_tiers[index-1].limit;
+                                                if (remainingMinutes > 0) {
+                                                    const minutesInTier = Math.min(remainingMinutes, tier.limit - prevTierLimit);
+                                                    voiceCost += minutesInTier * tier.price;
+                                                    remainingMinutes -= minutesInTier;
+                                                }
+                                            });
+                                            return `${curr}${(voiceCost * agenticMult).toFixed(2)}`;
+                                       })()}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400">Total for channel</span>
+                                  </div>
+                                </div>
+                            )}
+
+                            {/* Chatbot */}
+                            {ch.type === 'Chat' && ch.features.includes('chatbot') && (
+                                <div className="flex justify-between items-center group">
+                                  <div className="flex flex-col">
+                                    <span className="font-semibold text-blue-700">Chatbot Automation</span>
+                                    <span className="text-[10px] text-slate-400">Total Vol ({ch.volume.toLocaleString()})</span>
+                                  </div>
+                                  <div className="text-right">
+                                    <span className="block font-mono font-bold text-blue-700">
+                                      {curr}{(ch.volume * pricing.chatbot_per_conversation * agenticMult).toFixed(2)}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400">@ {curr}{pricing.chatbot_per_conversation}/conv</span>
+                                  </div>
+                                </div>
+                            )}
+                            
+                            {/* Live Chat */}
+                            {ch.type === 'Chat' && ch.features.includes('liveChat') && (
+                                <div className="flex justify-between items-center group">
+                                  <div className="flex flex-col">
+                                    <span className="font-semibold text-green-700">Live Chat</span>
+                                    <span className="text-[10px] text-slate-400">Uncontained ({liveVol.toLocaleString()})</span>
+                                  </div>
+                                  <div className="text-right">
+                                    <span className="block font-mono font-bold text-green-700">
+                                      {curr}{(liveVol * pricing.live_chat_per_conversation * agenticMult).toFixed(2)}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400">@ {curr}{pricing.live_chat_per_conversation}/conv</span>
+                                  </div>
+                                </div>
+                            )}
+
+                             {/* Agentic Multiplier */}
+                            {ch.features.includes('agentic') && (
+                                <div className="bg-amber-50 p-2 rounded text-center border border-amber-100">
+                                    <span className="text-xs font-bold text-amber-700">Agentic Framework Active</span>
+                                    <span className="block text-[10px] text-amber-600">All channel costs x1.25</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            }
+
+            // --- AWS (STANDARD) LOGIC ---
             return (
               <div key={ch.id} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
@@ -334,12 +460,13 @@ const CostBreakdownSidebar = ({ isOpen, onClose, channels, pricing }) => {
                   {(ch.features.includes('convIVR') || ch.features.includes('chatbot')) && (
                     <div className="flex justify-between items-center group">
                       <div className="flex flex-col">
-                        <span className="font-semibold text-purple-700">Lex Automation</span>
-                        <span className="text-[10px] text-slate-400 font-medium">{ch.lexTurns} turns avg</span>
+                        <span className="font-semibold text-purple-700">Automation</span>
+                        <span className="text-[10px] text-slate-400 font-medium">{ch.lexTurns || 0} turns avg</span>
                       </div>
                       <div className="text-right">
                         <span className="block font-mono font-bold text-purple-700">
-                          {curr}{(ch.volume * ch.lexTurns * (ch.type === 'Voice' ? pricing.lex_speech_turn : pricing.lex_text_turn)).toFixed(2)}
+                           {/* NOTE: This simple logic is for AWS. Yellow logic is handled in the main wizard, but this keeps the sidebar safe */}
+                          {curr}{(ch.volume * (ch.lexTurns || 0) * (ch.type === 'Voice' ? pricing.lex_speech_turn : pricing.lex_text_turn)).toFixed(2)}
                         </span>
                         <span className="text-[10px] text-slate-400 group-hover:text-blue-500 transition-colors">@ {curr}{ch.type === 'Voice' ? pricing.lex_speech_turn : pricing.lex_text_turn}/turn</span>
                       </div>
@@ -354,12 +481,12 @@ const CostBreakdownSidebar = ({ isOpen, onClose, channels, pricing }) => {
                        </div>
                        <div className="flex justify-between items-end">
                          <span className="text-[10px] text-amber-700 opacity-80 font-medium">
-                           {((ch.volume * (ch.lexTurns || 1) * ((ch.contextChars + (ch.systemComplexity * 1000))/4))).toLocaleString()} tot. tokens
+                           {((ch.volume * (ch.lexTurns || 1) * (((ch.contextChars || 0) + ((ch.systemComplexity || 0) * 1000))/4))).toLocaleString()} tot. tokens
                          </span>
                          <span className="font-mono font-bold text-amber-800">
                            {curr}{(
-                            (ch.volume * (ch.lexTurns || 1) * ((ch.contextChars + (ch.systemComplexity * 1000))/4/1000) * modelPricing.input) + 
-                            (ch.volume * (ch.lexTurns || 1) * ((ch.contextChars + (ch.systemComplexity * 1000))/4/1000 * 0.2) * modelPricing.output) 
+                            (ch.volume * (ch.lexTurns || 1) * (((ch.contextChars || 0) + ((ch.systemComplexity || 0) * 1000))/4/1000) * modelPricing.input) + 
+                            (ch.volume * (ch.lexTurns || 1) * (((ch.contextChars || 0) + ((ch.systemComplexity || 0) * 1000))/4/1000 * 0.2) * modelPricing.output) 
                           ).toFixed(2)}
                          </span>
                        </div>
@@ -595,10 +722,12 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
   const [rateBand, setRateBand] = useState('Medium');
 
   useEffect(() => {
-    if (client.region && REGIONAL_PRICING[client.region]) {
+    if (client.techStack === 'aws' && client.region && REGIONAL_PRICING[client.region]) {
       setGlobalPricing(REGIONAL_PRICING[client.region]);
+    } else if (client.techStack === 'yellow') {
+      setGlobalPricing(YELLOW_AI_PRICING);
     }
-  }, [client.region, setGlobalPricing]);
+  }, [client.region, client.techStack, setGlobalPricing]);
 
   useEffect(() => {
     document.title = "CX Cost Calculator";
@@ -610,69 +739,110 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
     let totalDigitalCost = 0;
     let totalAiCost = 0;
     let totalInfraCost = 0;
+    let totalPlatformCost = 0;
 
-    channels.forEach(ch => {
-      const containedVol = ch.volume * (ch.containment / 100);
-      const liveVol = ch.volume - containedVol;
-      const modelPricing = BEDROCK_MODELS[ch.bedrockModel || 'sonnet'];
-      const hasConnectVoiceUsage = ch.features.includes('connect_voice_usage');
-      const hasTelephony = ch.features.includes('telephony');
-      const hasTranslate = ch.features.includes('translate');
-      const hasContactLens = ch.features.includes('contactLens');
-      const hasAgentAssist = ch.features.includes('agentAssist');
-      const hasBot = ch.features.includes('convIVR') || ch.features.includes('chatbot');
-      const hasBedrock = ch.features.includes('bedrock');
-      const hasStorage = ch.features.includes('storage');
-      const hasConnectChatUsage = ch.features.includes('connect_chat_usage');
+    if (client.techStack === 'aws') {
+      channels.forEach(ch => {
+        const containedVol = ch.volume * (ch.containment / 100);
+        const liveVol = ch.volume - containedVol;
+        const modelPricing = BEDROCK_MODELS[ch.bedrockModel || 'sonnet'];
+        const hasConnectVoiceUsage = ch.features.includes('connect_voice_usage');
+        const hasTelephony = ch.features.includes('telephony');
+        const hasTranslate = ch.features.includes('translate');
+        const hasContactLens = ch.features.includes('contactLens');
+        const hasAgentAssist = ch.features.includes('agentAssist');
+        const hasBot = ch.features.includes('convIVR') || ch.features.includes('chatbot');
+        const hasBedrock = ch.features.includes('bedrock');
+        const hasStorage = ch.features.includes('storage');
+        const hasConnectChatUsage = ch.features.includes('connect_chat_usage');
 
-      if (ch.type === 'Voice') {
-        const baseRate = (hasConnectVoiceUsage ? pricing.connect_voice_usage_per_min : 0) + (hasTelephony ? pricing.telephony_per_min : 0);
-        const analyticsRate = hasContactLens ? pricing.contact_lens_voice_min : 0;
-        const translateRate = hasTranslate ? pricing.translate_voice_min : 0;
-        const assistRate = hasAgentAssist ? pricing.agent_assist_voice_min : 0;
-        
-        totalVoiceCost += liveVol * ch.aht * (baseRate + analyticsRate + assistRate + translateRate);
-        
-        if (hasBot) {
-           totalVoiceCost += containedVol * 2.0 * (baseRate + translateRate); 
-           totalAiCost += ch.volume * ch.lexTurns * pricing.lex_speech_turn;
+        if (ch.type === 'Voice') {
+          const baseRate = (hasConnectVoiceUsage ? pricing.connect_voice_usage_per_min : 0) + (hasTelephony ? pricing.telephony_per_min : 0);
+          const analyticsRate = hasContactLens ? pricing.contact_lens_voice_min : 0;
+          const translateRate = hasTranslate ? pricing.translate_voice_min : 0;
+          const assistRate = hasAgentAssist ? pricing.agent_assist_voice_min : 0;
+          
+          totalVoiceCost += liveVol * ch.aht * (baseRate + analyticsRate + assistRate + translateRate);
+          
+          if (hasBot) {
+             totalVoiceCost += containedVol * 2.0 * (baseRate + translateRate); 
+             totalAiCost += ch.volume * ch.lexTurns * pricing.lex_speech_turn;
+          }
+          if (hasBedrock) {
+            const inputTokens = (ch.contextChars + (ch.systemComplexity * 1000)) / 4;
+            const outputTokens = inputTokens * 0.2; 
+            const costPerTurn = (inputTokens/1000 * modelPricing.input) + (outputTokens/1000 * modelPricing.output);
+            totalAiCost += ch.volume * ch.lexTurns * costPerTurn;
+          }
+          if (hasStorage) totalInfraCost += (ch.volume * ch.aht * 0.001) * pricing.storage_per_gb;
+
+        } else if (ch.type === 'Chat') {
+          const msgsPerSession = 15; 
+          const baseRate = hasConnectChatUsage ? pricing.connect_chat_usage_per_msg : 0;
+          const analyticsRate = hasContactLens ? pricing.contact_lens_chat_msg : 0;
+          const assistRate = hasAgentAssist ? pricing.agent_assist_chat_msg : 0;
+          const translateRate = hasTranslate ? (1.5 * pricing.translate_chat_unit) : 0; 
+
+          totalDigitalCost += liveVol * msgsPerSession * (baseRate + analyticsRate + assistRate + translateRate);
+          
+          if (hasBot) totalAiCost += ch.volume * ch.lexTurns * pricing.lex_text_turn;
+          if (hasBedrock) {
+            const inputTokens = (ch.contextChars + (ch.systemComplexity * 1000)) / 4;
+            const outputTokens = inputTokens * 0.2;
+            const costPerTurn = (inputTokens/1000 * modelPricing.input) + (outputTokens/1000 * modelPricing.output);
+            totalAiCost += ch.volume * ch.lexTurns * costPerTurn;
+          }
+          if (hasStorage) totalInfraCost += (ch.volume * 0.0005) * pricing.storage_per_gb;
+
+        } else if (ch.type === 'Email') {
+          totalDigitalCost += ch.volume * pricing.email_per_msg * 2; 
+          if (hasBedrock) {
+             const tokensPerEmail = (ch.contextChars * 2) / 4; 
+             totalAiCost += ch.volume * (tokensPerEmail/1000 * modelPricing.input + (tokensPerEmail*0.5/1000 * modelPricing.output));
+          }
         }
-        if (hasBedrock) {
-          const inputTokens = (ch.contextChars + (ch.systemComplexity * 1000)) / 4;
-          const outputTokens = inputTokens * 0.2; 
-          const costPerTurn = (inputTokens/1000 * modelPricing.input) + (outputTokens/1000 * modelPricing.output);
-          totalAiCost += ch.volume * ch.lexTurns * costPerTurn;
+      });
+    } else if (client.techStack === 'yellow') {
+        const hasYellowFeature = channels.some(c => c.features.length > 0);
+        if (hasYellowFeature) {
+            totalPlatformCost = YELLOW_AI_PRICING.platform_fee;
         }
-        if (hasStorage) totalInfraCost += (ch.volume * ch.aht * 0.001) * pricing.storage_per_gb;
 
-      } else if (ch.type === 'Chat') {
-        const msgsPerSession = 15; 
-        const baseRate = hasConnectChatUsage ? pricing.connect_chat_usage_per_msg : 0;
-        const analyticsRate = hasContactLens ? pricing.contact_lens_chat_msg : 0;
-        const assistRate = hasAgentAssist ? pricing.agent_assist_chat_msg : 0;
-        const translateRate = hasTranslate ? (1.5 * pricing.translate_chat_unit) : 0; 
+        channels.forEach(ch => {
+            const hasAgentic = ch.features.includes('agentic');
+            const agenticMultiplier = hasAgentic ? 1.25 : 1.0;
 
-        totalDigitalCost += liveVol * msgsPerSession * (baseRate + analyticsRate + assistRate + translateRate);
-        
-        if (hasBot) totalAiCost += ch.volume * ch.lexTurns * pricing.lex_text_turn;
-        if (hasBedrock) {
-          const inputTokens = (ch.contextChars + (ch.systemComplexity * 1000)) / 4;
-          const outputTokens = inputTokens * 0.2;
-          const costPerTurn = (inputTokens/1000 * modelPricing.input) + (outputTokens/1000 * modelPricing.output);
-          totalAiCost += ch.volume * ch.lexTurns * costPerTurn;
-        }
-        if (hasStorage) totalInfraCost += (ch.volume * 0.0005) * pricing.storage_per_gb;
+            if (ch.type === 'Voice' && ch.features.includes('convIVR')) {
+                const totalMinutes = ch.volume * ch.aht;
+                let remainingMinutes = totalMinutes;
+                let voiceCost = 0;
+                YELLOW_AI_PRICING.conv_ivr_per_min_tiers.forEach((tier, index) => {
+                    const prevTierLimit = index === 0 ? 0 : YELLOW_AI_PRICING.conv_ivr_per_min_tiers[index-1].limit;
+                    if (remainingMinutes > 0) {
+                        const minutesInTier = Math.min(remainingMinutes, tier.limit - prevTierLimit);
+                        voiceCost += minutesInTier * tier.price;
+                        remainingMinutes -= minutesInTier;
+                    }
+                });
+                totalVoiceCost += voiceCost * agenticMultiplier;
+            } else if (ch.type === 'Chat') {
+                const containment = ch.containment || 0;
+                const uncontainedVol = ch.volume * ((100 - containment) / 100);
 
-      } else if (ch.type === 'Email') {
-        totalDigitalCost += ch.volume * pricing.email_per_msg * 2; 
-        if (hasBedrock) {
-           const tokensPerEmail = (ch.contextChars * 2) / 4; 
-           totalAiCost += ch.volume * (tokensPerEmail/1000 * modelPricing.input + (tokensPerEmail*0.5/1000 * modelPricing.output));
-        }
-      }
-    });
+                if (ch.features.includes('chatbot')) {
+                     // Chatbot pricing applies to all conversations (assuming bot starts all interactions)
+                     totalDigitalCost += ch.volume * YELLOW_AI_PRICING.chatbot_per_conversation * agenticMultiplier;
+                }
+                if (ch.features.includes('liveChat')) {
+                    // Live chat pricing only applies to sessions that escalate to human (uncontained)
+                    totalDigitalCost += uncontainedVol * YELLOW_AI_PRICING.live_chat_per_conversation * agenticMultiplier;
+                }
+            }
+        });
+    }
 
-    const totalTechMonthly = totalVoiceCost + totalDigitalCost + totalAiCost + totalInfraCost;
+
+    const totalTechMonthly = totalVoiceCost + totalDigitalCost + totalAiCost + totalInfraCost + totalPlatformCost;
 
     const rateMultiplier = RATE_BANDS[rateBand] || 1.0;
     
@@ -689,20 +859,30 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
       digitalCost: totalDigitalCost,
       aiCost: totalAiCost,
       infraCost: totalInfraCost,
+      platformCost: totalPlatformCost,
       totalTechMonthly,
       implCost,
       oneYearTCO: (totalTechMonthly * 12) + implCost
     };
-  }, [channels, pricing, resources, rateBand]);
+  }, [channels, pricing, resources, rateBand, client.techStack]);
 
   // --- HANDLERS ---
   const addChannel = (type) => {
     const newId = Date.now().toString();
-    const defaults = {
+    const defaults_aws = {
       Voice: { name: 'Voice', type: 'Voice', volume: 10000, aht: 5, containment: 10, lexTurns: 5, systemComplexity: 1, contextChars: 5000, bedrockModel: 'sonnet', features: ['connect_voice_usage'] },
       Chat: { name: 'Chat', type: 'Chat', volume: 5000, aht: 0, containment: 20, lexTurns: 8, systemComplexity: 1, contextChars: 5000, bedrockModel: 'sonnet', features: ['connect_chat_usage'] },
       Email: { name: 'Email', type: 'Email', volume: 2000, aht: 0, containment: 0, lexTurns: 0, systemComplexity: 0, contextChars: 10000, bedrockModel: 'sonnet', features: ['emailMgmt'] }
     };
+    const defaults_yellow = {
+      // Added missing keys to prevent UI crashes in Step 2
+      Voice: { name: 'Voice', type: 'Voice', volume: 10000, aht: 5, containment: 10, lexTurns: 5, systemComplexity: 1, contextChars: 1000, features: ['convIVR'] },
+      Chat: { name: 'Chat', type: 'Chat', volume: 5000, aht: 0, containment: 20, lexTurns: 8, systemComplexity: 1, contextChars: 1000, features: ['chatbot', 'liveChat'] },
+    };
+    
+    const defaults = client.techStack === 'yellow' ? defaults_yellow : defaults_aws;
+    if (client.techStack === 'yellow' && type === 'Email') return;
+
     setChannels([...channels, { id: newId, ...defaults[type] }]);
   };
 
@@ -811,10 +991,15 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
           <select 
             className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
             value={client.techStack}
-            onChange={(e) => setClient({...client, techStack: e.target.value})}
+            onChange={(e) => {
+                const newStack = e.target.value;
+                setClient({...client, techStack: newStack});
+                // Clear channels when switching stacks to avoid feature mismatches
+                setChannels([]); 
+            }}
           >
             <option value="aws">Amazon Connect (AWS)</option>
-            <option value="yellow">Yellow.ai (Coming Soon)</option>
+            <option value="yellow">Yellow.ai</option>
             <option value="kore">Kore.ai (Coming Soon)</option>
           </select>
         </div>
@@ -837,8 +1022,6 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
 
   const renderStep2 = () => (
     <div className="space-y-8 animate-fadeIn">
-      {/* MOVED: Feature Checklist is now here (after basic inputs) -> This comment was from previous prompt, actual rendered code is below */}
-      
       <div className="flex justify-between items-center">
         <h3 className="text-xl font-bold text-slate-800">Tech Inputs & Channels</h3>
         <div className="flex gap-2">
@@ -848,7 +1031,12 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
           <button onClick={() => addChannel('Chat')} className="flex items-center gap-2 bg-green-50 text-green-600 px-3 py-2 rounded-lg text-sm font-medium hover:bg-green-100">
             <MessageSquare size={16}/> Add Chat
           </button>
-          <button onClick={() => addChannel('Email')} className="flex items-center gap-2 bg-purple-50 text-purple-600 px-3 py-2 rounded-lg text-sm font-medium hover:bg-purple-100">
+          <button 
+            onClick={() => addChannel('Email')} 
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${client.techStack === 'yellow' ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'}`}
+            disabled={client.techStack === 'yellow'}
+            title={client.techStack === 'yellow' ? "Not available for Yellow.ai" : "Add Email"}
+          >
             <Mail size={16}/> Add Email
           </button>
         </div>
@@ -907,7 +1095,7 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
                   </div>
                 </div>
               )}
-              {ch.type !== 'Email' && (
+              {ch.type !== 'Email' && !(client.techStack === 'yellow' && ch.type === 'Voice') && (
                 <div>
                   <div className="flex justify-between items-end mb-2">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Containment Target</label>
@@ -916,17 +1104,19 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
                   <input 
                     type="range" min="0" max="100" 
                     className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-green-500"
-                    value={ch.containment}
+                    value={ch.containment || 0}
                     onChange={(e) => updateChannel(ch.id, 'containment', parseInt(e.target.value))}
                   />
                 </div>
               )}
 
-              {/* Feature Checklist */}
+              {/* Feature Checklist - DYNAMIC SWITCHING ADDED HERE */}
               <div className="md:col-span-3 border-t border-slate-100 pt-4 mt-2">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3 block">AWS CCaaS Features</label>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3 block">
+                    {client.techStack === 'yellow' ? 'Yellow.ai Modules' : 'AWS CCaaS Features'}
+                </label>
                 <div className="flex flex-wrap gap-3">
-                  {Object.entries(FEATURES_CATALOG).map(([key, feature]) => {
+                  {Object.entries(client.techStack === 'yellow' ? FEATURES_CATALOG_YELLOW_AI : FEATURES_CATALOG).map(([key, feature]) => {
                     if (!feature.channels.includes(ch.type)) return null;
                     const isSelected = ch.features.includes(key);
                     const Icon = feature.icon;
@@ -952,14 +1142,14 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
               
               {/* Conditional Settings (Bot/GenAI) */}
               <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
-                  {(ch.features.includes('convIVR') || ch.features.includes('chatbot')) && (
+                  {(client.techStack === 'aws' && (ch.features.includes('convIVR') || ch.features.includes('chatbot'))) && (
                     <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100 relative">
                       <div className="flex justify-between items-start mb-3">
                          <div>
                             <label className="text-sm font-bold text-indigo-800 flex items-center gap-2">
                                <Cpu size={14}/> Conv. Complexity
                             </label>
-                            <p className="text-xs text-indigo-600">Avg. Lex turns per session</p>
+                            <p className="text-xs text-indigo-600">Avg. turns per session</p>
                          </div>
                          <input 
                            type="number" 
@@ -1012,32 +1202,32 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
                          <input 
                            type="range" min="1" max="10" 
                            className="w-full h-1 bg-slate-200 rounded appearance-none cursor-pointer accent-amber-500"
-                           value={ch.systemComplexity}
+                           value={ch.systemComplexity || 1}
                            onChange={(e) => updateChannel(ch.id, 'systemComplexity', parseInt(e.target.value))}
                          />
                       </div>
                       <div>
                          <div className="flex justify-between mb-1">
                             <span className="text-xs font-semibold text-slate-600">Context Window</span>
-                            <span className="text-xs font-bold text-slate-800">{ch.contextChars.toLocaleString()} chars</span>
+                            <span className="text-xs font-bold text-slate-800">{(ch.contextChars || 0).toLocaleString()} chars</span>
                          </div>
                          <input 
                            type="range" min="1000" max="30000" step="1000"
                            className="w-full h-1 bg-slate-200 rounded appearance-none cursor-pointer accent-amber-500"
-                           value={ch.contextChars}
+                           value={ch.contextChars || 5000}
                            onChange={(e) => updateChannel(ch.id, 'contextChars', parseInt(e.target.value))}
                          />
                          <div className="mt-2 grid grid-cols-2 gap-2">
                             <div className="bg-white p-2 rounded border border-amber-100 text-center">
                               <span className="block text-[10px] text-slate-400 uppercase">Input Tokens</span>
                               <span className="text-xs font-mono font-bold text-slate-600">
-                                {Math.round((ch.contextChars + (ch.systemComplexity * 1000))/4).toLocaleString()}
+                                {Math.round(((ch.contextChars || 0) + ((ch.systemComplexity || 0) * 1000))/4).toLocaleString()}
                               </span>
                             </div>
                             <div className="bg-white p-2 rounded border border-amber-100 text-center">
                               <span className="block text-[10px] text-slate-400 uppercase">Output Tokens</span>
                               <span className="text-xs font-mono font-bold text-slate-600">
-                                {Math.round(((ch.contextChars + (ch.systemComplexity * 1000))/4) * 0.2).toLocaleString()}
+                                {Math.round((((ch.contextChars || 0) + ((ch.systemComplexity || 0) * 1000))/4) * 0.2).toLocaleString()}
                               </span>
                             </div>
                          </div>
@@ -1223,6 +1413,7 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
             { name: 'Digital/Msg', value: calculations.digitalCost },
             { name: 'AI & Automation', value: calculations.aiCost },
             { name: 'Infrastructure', value: calculations.infraCost },
+            { name: 'Platform Fee', value: calculations.platformCost },
           ]}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
             <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
@@ -1366,11 +1557,12 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
         onClose={() => setShowBreakdown(false)}
         channels={channels}
         pricing={pricing}
+        techStack={client.techStack} // Added techStack prop
         calculations={calculations}
       />
     </div>
   );
-};
+}
 
 // ... (Dashboard and App components remain mostly the same, ensuring full export) ...
 const Dashboard = ({ user }) => (
