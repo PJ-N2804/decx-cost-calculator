@@ -5,7 +5,8 @@ import {
 import { 
   Calculator, Users, FileText, Settings, Save, Download, 
   Plus, Trash2, ChevronRight, CheckCircle, Database, LayoutDashboard,
-  Mic, MessageSquare, Mail, Server, Cpu, Activity, Zap, BrainCircuit, Edit2, Globe, Boxes, Info, X, HelpCircle, Calendar, Link as LinkIcon, Layers, ArrowLeft, ArrowRight
+  Mic, MessageSquare, Mail, Server, Cpu, Activity, Zap, BrainCircuit, Edit2, Globe, Boxes, Info, X, HelpCircle, Calendar, Link as LinkIcon, Layers, ArrowLeft, ArrowRight,
+  Phone, MessageSquarePlus
 } from 'lucide-react';
 
 // Firebase imports
@@ -41,16 +42,16 @@ const BEDROCK_MODELS = {
 };
 
 const DEFAULT_PRICING = {
-  voice_per_min: 0.018, 
+  connect_voice_usage_per_min: 0.018,
   telephony_per_min: 0.0022, 
-  chat_per_msg: 0.004,
+  connect_chat_usage_per_msg: 0.004,
   email_per_msg: 0.004,
   translate_voice_min: 0.015, 
   translate_chat_unit: 0.00006, 
-  lex_speech_turn: 0.004, 
+  lex_speech_turn: 0.0065, 
   lex_text_turn: 0.00075, 
-  agent_assist_voice_min: 0.012,
-  agent_assist_chat_msg: 0.003,
+  agent_assist_voice_min: 0.0080,
+  agent_assist_chat_msg: 0.0015,
   contact_lens_voice_min: 0.015,
   contact_lens_chat_msg: 0.0015,
   storage_per_gb: 0.023
@@ -59,29 +60,29 @@ const DEFAULT_PRICING = {
 const REGIONAL_PRICING = {
   'US': {
     currency: '$',
-    voice_per_min: 0.018, 
+    connect_voice_usage_per_min: 0.018,
     telephony_per_min: 0.0022, 
-    chat_per_msg: 0.004,
+    connect_chat_usage_per_msg: 0.004,
     email_per_msg: 0.004,
     translate_voice_min: 0.015, 
     translate_chat_unit: 0.00006, 
-    lex_speech_turn: 0.004, 
+    lex_speech_turn: 0.0065, 
     lex_text_turn: 0.00075, 
-    agent_assist_voice_min: 0.012,
-    agent_assist_chat_msg: 0.003,
+    agent_assist_voice_min: 0.0080,
+    agent_assist_chat_msg: 0.0015,
     contact_lens_voice_min: 0.015,
     contact_lens_chat_msg: 0.0015,
     storage_per_gb: 0.023
   },
   'UK': {
     currency: '£', 
-    voice_per_min: 0.022, 
+    connect_voice_usage_per_min: 0.022,
     telephony_per_min: 0.0035, 
-    chat_per_msg: 0.005,
+    connect_chat_usage_per_msg: 0.005,
     email_per_msg: 0.005,
     translate_voice_min: 0.018, 
     translate_chat_unit: 0.00008, 
-    lex_speech_turn: 0.005, 
+    lex_speech_turn: 0.0065, 
     lex_text_turn: 0.0009, 
     agent_assist_voice_min: 0.014,
     agent_assist_chat_msg: 0.004,
@@ -92,7 +93,9 @@ const REGIONAL_PRICING = {
 };
 
 const FEATURES_CATALOG = {
-  telephony: { label: 'Telephony Included', channels: ['Voice'], icon: Zap },
+  connect_voice_usage: { label: 'Connect Voice Usage', channels: ['Voice'], icon: Phone },
+  telephony: { label: 'Telephony DID/Toll-Free', channels: ['Voice'], icon: Zap },
+  connect_chat_usage: { label: 'Connect Chat Usage', channels: ['Chat'], icon: MessageSquarePlus },
   translate: { label: 'Real-time Translation', channels: ['Voice', 'Chat'], icon: Globe },
   convIVR: { label: 'Conversational IVR (Lex)', channels: ['Voice'], icon: Cpu },
   chatbot: { label: 'Chatbot Automation', channels: ['Chat'], icon: Cpu },
@@ -269,29 +272,29 @@ const CostBreakdownSidebar = ({ isOpen, onClose, channels, pricing }) => {
                 
                 <div className="space-y-3 text-sm text-slate-600">
                   {/* --- VOICE CALCULATIONS --- */}
-                  {ch.type === 'Voice' && (
+                  {ch.type === 'Voice' && ch.features.includes('connect_voice_usage') && (
                     <div className="flex justify-between items-center group">
                       <div className="flex flex-col">
                         <span className="font-semibold text-slate-700">Voice Transport</span>
                         <span className="text-[10px] text-slate-400 font-medium">{ch.aht}m/call</span>
                       </div>
                       <div className="text-right">
-                        <span className="block font-mono font-bold text-slate-800">{curr}{(ch.volume * ch.aht * pricing.voice_per_min).toFixed(2)}</span>
-                        <span className="text-[10px] text-slate-400 group-hover:text-blue-500 transition-colors">@ {curr}{pricing.voice_per_min}/min</span>
+                        <span className="block font-mono font-bold text-slate-800">{curr}{(ch.volume * ch.aht * pricing.connect_voice_usage_per_min).toFixed(2)}</span>
+                        <span className="text-[10px] text-slate-400 group-hover:text-blue-500 transition-colors">@ {curr}{pricing.connect_voice_usage_per_min}/min</span>
                       </div>
                     </div>
                   )}
 
                   {/* --- CHAT CALCULATIONS --- */}
-                  {ch.type === 'Chat' && (
+                  {ch.type === 'Chat' && ch.features.includes('connect_chat_usage') && (
                     <div className="flex justify-between items-center group">
                       <div className="flex flex-col">
                         <span className="font-semibold text-slate-700">Chat Messaging</span>
                         <span className="text-[10px] text-slate-400 font-medium">{liveVol.toLocaleString()} live sessions</span>
                       </div>
                       <div className="text-right">
-                        <span className="block font-mono font-bold text-slate-800">{curr}{(liveVol * 15 * pricing.chat_per_msg).toFixed(2)}</span>
-                        <span className="text-[10px] text-slate-400 group-hover:text-blue-500 transition-colors">@ {curr}{pricing.chat_per_msg}/msg</span>
+                        <span className="block font-mono font-bold text-slate-800">{curr}{(liveVol * 15 * pricing.connect_chat_usage_per_msg).toFixed(2)}</span>
+                        <span className="text-[10px] text-slate-400 group-hover:text-blue-500 transition-colors">@ {curr}{pricing.connect_chat_usage_per_msg}/msg</span>
                       </div>
                     </div>
                   )}
@@ -309,6 +312,7 @@ const CostBreakdownSidebar = ({ isOpen, onClose, channels, pricing }) => {
                             : (liveVol * 15 * 1.5 * pricing.translate_chat_unit).toFixed(2)
                           }
                         </span>
+                         <span className="text-[10px] text-slate-400 group-hover:text-blue-500 transition-colors">@ {curr}{ch.type === 'Voice' ? pricing.translate_voice_min : pricing.translate_chat_unit}/{ch.type === 'Voice' ? 'min' : 'char'}</span>
                       </div>
                     </div>
                   )}
@@ -321,6 +325,7 @@ const CostBreakdownSidebar = ({ isOpen, onClose, channels, pricing }) => {
                       </div>
                       <div className="text-right">
                         <span className="block font-mono font-bold text-blue-700">{curr}{(liveVol * ch.aht * pricing.telephony_per_min).toFixed(2)}</span>
+                        <span className="text-[10px] text-slate-400 group-hover:text-blue-500 transition-colors">@ {curr}{pricing.telephony_per_min}/min</span>
                       </div>
                     </div>
                   )}
@@ -336,6 +341,7 @@ const CostBreakdownSidebar = ({ isOpen, onClose, channels, pricing }) => {
                         <span className="block font-mono font-bold text-purple-700">
                           {curr}{(ch.volume * ch.lexTurns * (ch.type === 'Voice' ? pricing.lex_speech_turn : pricing.lex_text_turn)).toFixed(2)}
                         </span>
+                        <span className="text-[10px] text-slate-400 group-hover:text-blue-500 transition-colors">@ {curr}{ch.type === 'Voice' ? pricing.lex_speech_turn : pricing.lex_text_turn}/turn</span>
                       </div>
                     </div>
                   )}
@@ -375,7 +381,38 @@ const CostBreakdownSidebar = ({ isOpen, onClose, channels, pricing }) => {
                          <span className="block font-mono font-bold text-emerald-700">
                            {curr}{(liveVol * (ch.type === 'Voice' ? ch.aht : 15) * (ch.type === 'Voice' ? pricing.agent_assist_voice_min : pricing.agent_assist_chat_msg)).toFixed(2)}
                          </span>
+                         <span className="text-[10px] text-slate-400 group-hover:text-blue-500 transition-colors">@ {curr}{ch.type === 'Voice' ? pricing.agent_assist_voice_min : pricing.agent_assist_chat_msg}/{ch.type === 'Voice' ? 'min' : 'msg'}</span>
                        </div>
+                    </div>
+                  )}
+                  
+                  {/* --- CONTACT LENS --- */}
+                  {ch.features.includes('contactLens') && (
+                    <div className="flex justify-between items-center group">
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-rose-700">Contact Lens</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="block font-mono font-bold text-rose-700">
+                          {curr}{(ch.volume * (ch.type === 'Voice' ? ch.aht : 15) * (ch.type === 'Voice' ? pricing.contact_lens_voice_min : pricing.contact_lens_chat_msg)).toFixed(2)}
+                        </span>
+                        <span className="text-[10px] text-slate-400 group-hover:text-blue-500 transition-colors">@ {curr}{ch.type === 'Voice' ? pricing.contact_lens_voice_min : pricing.contact_lens_chat_msg}/{ch.type === 'Voice' ? 'min' : 'msg'}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* --- STORAGE --- */}
+                  {ch.features.includes('storage') && (
+                     <div className="flex justify-between items-center group">
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-gray-700">Storage</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="block font-mono font-bold text-gray-700">
+                          {curr}{ (ch.type === 'Voice' ? (ch.volume * ch.aht * 0.001) * pricing.storage_per_gb : (ch.volume * 0.0005) * pricing.storage_per_gb).toFixed(2)}
+                        </span>
+                        <span className="text-[10px] text-slate-400 group-hover:text-blue-500 transition-colors">@ {curr}{pricing.storage_per_gb}/GB</span>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -388,7 +425,6 @@ const CostBreakdownSidebar = ({ isOpen, onClose, channels, pricing }) => {
   );
 };
 
-// ... (ImplementationGantt remains the same) ...
 const ImplementationGantt = ({ resources, channels }) => {
   const [viewMode, setViewMode] = useState('resource'); 
 
@@ -579,6 +615,7 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
       const containedVol = ch.volume * (ch.containment / 100);
       const liveVol = ch.volume - containedVol;
       const modelPricing = BEDROCK_MODELS[ch.bedrockModel || 'sonnet'];
+      const hasConnectVoiceUsage = ch.features.includes('connect_voice_usage');
       const hasTelephony = ch.features.includes('telephony');
       const hasTranslate = ch.features.includes('translate');
       const hasContactLens = ch.features.includes('contactLens');
@@ -586,9 +623,10 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
       const hasBot = ch.features.includes('convIVR') || ch.features.includes('chatbot');
       const hasBedrock = ch.features.includes('bedrock');
       const hasStorage = ch.features.includes('storage');
+      const hasConnectChatUsage = ch.features.includes('connect_chat_usage');
 
       if (ch.type === 'Voice') {
-        const baseRate = pricing.voice_per_min + (hasTelephony ? pricing.telephony_per_min : 0);
+        const baseRate = (hasConnectVoiceUsage ? pricing.connect_voice_usage_per_min : 0) + (hasTelephony ? pricing.telephony_per_min : 0);
         const analyticsRate = hasContactLens ? pricing.contact_lens_voice_min : 0;
         const translateRate = hasTranslate ? pricing.translate_voice_min : 0;
         const assistRate = hasAgentAssist ? pricing.agent_assist_voice_min : 0;
@@ -609,7 +647,7 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
 
       } else if (ch.type === 'Chat') {
         const msgsPerSession = 15; 
-        const baseRate = pricing.chat_per_msg;
+        const baseRate = hasConnectChatUsage ? pricing.connect_chat_usage_per_msg : 0;
         const analyticsRate = hasContactLens ? pricing.contact_lens_chat_msg : 0;
         const assistRate = hasAgentAssist ? pricing.agent_assist_chat_msg : 0;
         const translateRate = hasTranslate ? (1.5 * pricing.translate_chat_unit) : 0; 
@@ -661,8 +699,8 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
   const addChannel = (type) => {
     const newId = Date.now().toString();
     const defaults = {
-      Voice: { name: 'Voice', type: 'Voice', volume: 10000, aht: 5, containment: 10, lexTurns: 5, systemComplexity: 1, contextChars: 5000, bedrockModel: 'sonnet', features: [] },
-      Chat: { name: 'Chat', type: 'Chat', volume: 5000, aht: 0, containment: 20, lexTurns: 8, systemComplexity: 1, contextChars: 5000, bedrockModel: 'sonnet', features: [] },
+      Voice: { name: 'Voice', type: 'Voice', volume: 10000, aht: 5, containment: 10, lexTurns: 5, systemComplexity: 1, contextChars: 5000, bedrockModel: 'sonnet', features: ['connect_voice_usage'] },
+      Chat: { name: 'Chat', type: 'Chat', volume: 5000, aht: 0, containment: 20, lexTurns: 8, systemComplexity: 1, contextChars: 5000, bedrockModel: 'sonnet', features: ['connect_chat_usage'] },
       Email: { name: 'Email', type: 'Email', volume: 2000, aht: 0, containment: 0, lexTurns: 0, systemComplexity: 0, contextChars: 10000, bedrockModel: 'sonnet', features: ['emailMgmt'] }
     };
     setChannels([...channels, { id: newId, ...defaults[type] }]);
@@ -1234,89 +1272,90 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
           ))}
         </div>
 
-        <div className="bg-white rounded-2xl shadow-xl border border-slate-100 p-6 min-h-[500px]">
-          {step === 1 && renderStep1()}
-          {step === 2 && renderStep2()}
-          {step === 3 && renderStep3()}
-          {step === 4 && renderStep4()}
-        </div>
+        {/* Container for Content + Sticky Bar */}
+        <div className="flex flex-col min-h-[calc(100vh-12rem)] relative">
+            {/* Card Content */}
+            <div className="flex-1 bg-white rounded-2xl shadow-xl border border-slate-100 p-6 mb-8">
+              {step === 1 && renderStep1()}
+              {step === 2 && renderStep2()}
+              {step === 3 && renderStep3()}
+              {step === 4 && renderStep4()}
+            </div>
 
-        {/* Spacer for fixed bottom bar */}
-        <div className="h-32"></div>
+            {/* Sticky Bottom Bar - Now inside the container so it aligns perfectly */}
+            <div className="sticky bottom-6 z-40 mt-auto">
+                <div className="w-full bg-slate-900/95 backdrop-blur-xl text-white px-8 py-4 rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.3)] border border-slate-700/50 flex items-center justify-between">
+                    
+                    {/* Total Cost */}
+                    <div className="flex items-center gap-8">
+                    <div>
+                        <p className="text-slate-400 text-[10px] uppercase tracking-widest font-bold mb-1">Total Monthly Tech</p>
+                        <div className="flex items-baseline gap-2">
+                            <span className="text-4xl font-extrabold font-mono tracking-tighter text-white drop-shadow-sm">
+                            {pricing.currency}{calculations.totalTechMonthly.toLocaleString(undefined, {maximumFractionDigits: 0})}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    {/* Metrics Breakdown (Hidden on mobile) */}
+                    <div className="hidden lg:flex gap-8 border-l border-slate-700 pl-8">
+                        <div>
+                        <span className="block text-[10px] text-slate-500 uppercase font-extrabold mb-1">Voice</span>
+                        <span className="font-mono font-bold text-lg text-slate-300">{pricing.currency}{calculations.voiceCost.toFixed(0)}</span>
+                        </div>
+                        <div>
+                        <span className="block text-[10px] text-slate-500 uppercase font-extrabold mb-1">Digital</span>
+                        <span className="font-mono font-bold text-lg text-slate-300">{pricing.currency}{calculations.digitalCost.toFixed(0)}</span>
+                        </div>
+                        <div>
+                        <span className="block text-[10px] text-slate-500 uppercase font-extrabold mb-1">AI/Bot</span>
+                        <span className="font-mono font-bold text-lg text-emerald-400">{pricing.currency}{calculations.aiCost.toFixed(0)}</span>
+                        </div>
+                    </div>
+                    </div>
 
-        {/* Consolidated Bottom Bar - Centered Relative to THIS container */}
-        <div className={`fixed bottom-0 left-20 right-0 transition-all duration-300 ease-in-out ${showBreakdown ? 'translate-x-[-200px]' : 'translate-x-0'} z-40`}>
-          <div className="w-full bg-slate-900/95 backdrop-blur-xl text-white px-8 py-4 rounded-t-2xl shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.3)] border-t border-slate-700/50 flex items-center justify-between max-w-7xl mx-auto">
-             
-             {/* Total Cost */}
-             <div className="flex items-center gap-8">
-               <div>
-                 <p className="text-slate-400 text-[10px] uppercase tracking-widest font-bold mb-1">Total Monthly Tech</p>
-                 <div className="flex items-baseline gap-2">
-                    <span className="text-4xl font-extrabold font-mono tracking-tighter text-white drop-shadow-sm">
-                      {pricing.currency}{calculations.totalTechMonthly.toLocaleString(undefined, {maximumFractionDigits: 0})}
-                    </span>
-                 </div>
-               </div>
-               
-               {/* Metrics Breakdown (Hidden on mobile) */}
-               <div className="hidden lg:flex gap-8 border-l border-slate-700 pl-8">
-                 <div>
-                   <span className="block text-[10px] text-slate-500 uppercase font-extrabold mb-1">Voice</span>
-                   <span className="font-mono font-bold text-lg text-slate-300">{pricing.currency}{calculations.voiceCost.toFixed(0)}</span>
-                 </div>
-                 <div>
-                   <span className="block text-[10px] text-slate-500 uppercase font-extrabold mb-1">Digital</span>
-                   <span className="font-mono font-bold text-lg text-slate-300">{pricing.currency}{calculations.digitalCost.toFixed(0)}</span>
-                 </div>
-                 <div>
-                   <span className="block text-[10px] text-slate-500 uppercase font-extrabold mb-1">AI/Bot</span>
-                   <span className="font-mono font-bold text-lg text-emerald-400">{pricing.currency}{calculations.aiCost.toFixed(0)}</span>
-                 </div>
-               </div>
-             </div>
+                    {/* Navigation & Actions */}
+                    <div className="flex items-center gap-3">
+                        {/* Back Button */}
+                        <button 
+                        onClick={() => setStep(s => Math.max(1, s - 1))}
+                        disabled={step === 1}
+                        className={`p-3 rounded-xl transition-all border border-slate-700 ${step === 1 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-slate-800 text-slate-300'}`}
+                        >
+                        <ArrowLeft size={20} />
+                        </button>
 
-             {/* Navigation & Actions */}
-             <div className="flex items-center gap-3">
-                {/* Back Button */}
-                <button 
-                  onClick={() => setStep(s => Math.max(1, s - 1))}
-                  disabled={step === 1}
-                  className={`p-3 rounded-xl transition-all border border-slate-700 ${step === 1 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-slate-800 text-slate-300'}`}
-                >
-                  <ArrowLeft size={20} />
-                </button>
+                        {/* Next Button */}
+                        {step < 4 ? (
+                        <button 
+                            onClick={() => setStep(s => Math.min(4, s + 1))}
+                            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-3 rounded-xl shadow-lg hover:shadow-blue-500/25 active:scale-95 transition-all"
+                        >
+                            <span>Next Step</span>
+                            <ArrowRight size={18} />
+                        </button>
+                        ) : (
+                        <button 
+                            onClick={saveDeal}
+                            disabled={loading}
+                            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-3 rounded-xl shadow-lg hover:shadow-emerald-500/25 active:scale-95 transition-all"
+                        >
+                            <Save size={18} />
+                            <span>{loading ? 'Saving...' : 'Save Deal'}</span>
+                        </button>
+                        )}
 
-                {/* Next Button */}
-                {step < 4 ? (
-                  <button 
-                    onClick={() => setStep(s => Math.min(4, s + 1))}
-                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-3 rounded-xl shadow-lg hover:shadow-blue-500/25 active:scale-95 transition-all"
-                  >
-                    <span>Next Step</span>
-                    <ArrowRight size={18} />
-                  </button>
-                ) : (
-                  <button 
-                    onClick={saveDeal}
-                    disabled={loading}
-                    className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-3 rounded-xl shadow-lg hover:shadow-emerald-500/25 active:scale-95 transition-all"
-                  >
-                    <Save size={18} />
-                    <span>{loading ? 'Saving...' : 'Save Deal'}</span>
-                  </button>
-                )}
-
-                {/* Cost DNA Toggle */}
-                <button 
-                  onClick={() => setShowBreakdown(!showBreakdown)}
-                  className={`p-3 rounded-xl border border-slate-600 transition-all ${showBreakdown ? 'bg-slate-700 text-white' : 'hover:bg-slate-800 text-slate-400'}`}
-                  title="Toggle Cost DNA"
-                >
-                   <Info size={20} />
-                </button>
-             </div>
-          </div>
+                        {/* Cost DNA Toggle */}
+                        <button 
+                        onClick={() => setShowBreakdown(!showBreakdown)}
+                        className={`p-3 rounded-xl border border-slate-600 transition-all ${showBreakdown ? 'bg-slate-700 text-white' : 'hover:bg-slate-800 text-slate-400'}`}
+                        title="Toggle Cost DNA"
+                        >
+                        <Info size={20} />
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
 
       </div>
@@ -1368,7 +1407,8 @@ export default function App() {
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
-      <main className="flex-1 ml-20 lg:ml-64 transition-all duration-300 relative overflow-x-hidden">
+      {/* NOTE: removed overflow-x-hidden to allow sticky positioning to work properly relative to viewport scrolling */}
+      <main className="flex-1 ml-20 lg:ml-64 transition-all duration-300 relative">
         {activeTab === 'dashboard' && <Dashboard user={user} />}
         {activeTab === 'calculator' && <EstimatorWizard user={user} pricing={pricing} setGlobalPricing={setPricing} />}
         {activeTab === 'knowledge' && <KnowledgeBase pricing={pricing} />}
