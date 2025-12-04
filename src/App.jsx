@@ -40,7 +40,22 @@ const BEDROCK_MODELS = {
   'opus': { label: 'Claude 3 Opus (Powerful)', input: 0.015, output: 0.075 }
 };
 
-// Regional Pricing Configuration
+const DEFAULT_PRICING = {
+  voice_per_min: 0.018, 
+  telephony_per_min: 0.0022, 
+  chat_per_msg: 0.004,
+  email_per_msg: 0.004,
+  translate_voice_min: 0.015, 
+  translate_chat_unit: 0.00006, 
+  lex_speech_turn: 0.004, 
+  lex_text_turn: 0.00075, 
+  agent_assist_voice_min: 0.012,
+  agent_assist_chat_msg: 0.003,
+  contact_lens_voice_min: 0.015,
+  contact_lens_chat_msg: 0.0015,
+  storage_per_gb: 0.023
+};
+
 const REGIONAL_PRICING = {
   'US': {
     currency: '$',
@@ -59,7 +74,7 @@ const REGIONAL_PRICING = {
     storage_per_gb: 0.023
   },
   'UK': {
-    currency: '£', // Display symbol (logic remains in decimals)
+    currency: '£', 
     voice_per_min: 0.022, 
     telephony_per_min: 0.0035, 
     chat_per_msg: 0.005,
@@ -130,11 +145,17 @@ const RATE_BANDS = {
 const Sidebar = ({ activeTab, setActiveTab }) => (
   <div className="w-20 lg:w-64 bg-slate-900 text-white flex flex-col h-screen fixed left-0 top-0 transition-all duration-300 z-50">
     <div className="p-4 flex items-center gap-3 border-b border-slate-700">
-      <div className="bg-blue-500 p-2 rounded-lg">
-        <Calculator size={24} className="text-white" />
+      {/* UPDATED: Firstsource Logo */}
+      <div className="bg-white p-2 rounded-lg flex items-center justify-center shrink-0">
+        <img 
+          src="https://logo.clearbit.com/firstsource.com" 
+          alt="Firstsource" 
+          className="h-10 w-auto object-contain"
+          onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'block'; }} 
+        />
+        <Calculator size={24} className="text-blue-600 hidden" /> {/* Fallback */}
       </div>
-      {/* CHANGED: Updated App Name */}
-      <span className="font-bold text-lg hidden lg:block">DECX Cost Calculator</span>
+      <span className="font-bold text-lg hidden lg:block leading-tight">CX Cost Calculator</span>
     </div>
     <nav className="flex-1 py-6 space-y-2 px-2">
       {[
@@ -250,7 +271,7 @@ const CostBreakdownModal = ({ isOpen, onClose, channels, pricing, calculations }
                     </div>
                   )}
 
-                  {/* --- CHAT CALCULATIONS (FIXED) --- */}
+                  {/* --- CHAT CALCULATIONS --- */}
                   {ch.type === 'Chat' && (
                     <div className="flex justify-between items-baseline border-b border-slate-50 pb-2">
                       <span>• Chat Svc: {liveVol.toLocaleString()} live × 15 msgs</span>
@@ -368,7 +389,7 @@ const CostBreakdownModal = ({ isOpen, onClose, channels, pricing, calculations }
 };
 
 const ImplementationGantt = ({ resources, channels }) => {
-  const [viewMode, setViewMode] = useState('resource'); // 'resource' or 'channel'
+  const [viewMode, setViewMode] = useState('resource'); 
 
   const maxWeeks = useMemo(() => {
     if (!resources || resources.length === 0) return 12;
@@ -377,20 +398,16 @@ const ImplementationGantt = ({ resources, channels }) => {
 
   const months = Math.ceil(maxWeeks / 4);
 
-  // Group resources by Channel for Channel View
   const resourcesByChannel = useMemo(() => {
     if (!resources || resources.length === 0) return {};
     const grouped = {};
-    // Initialize with all available channels
     channels.forEach(ch => { grouped[`${ch.type} (${ch.name})`] = []; });
-    // Add resources
     resources.forEach(res => {
       let chName = 'All Channels';
       if (res.channelId !== 'All') {
         const found = channels.find(c => c.id === res.channelId);
         if (found) chName = `${found.type} (${found.name})`;
       }
-      
       if (!grouped[chName]) grouped[chName] = [];
       grouped[chName].push(res);
     });
@@ -482,7 +499,6 @@ const ImplementationGantt = ({ resources, channels }) => {
             ) : (
               // CHANNEL VIEW
               Object.entries(resourcesByChannel).map(([chName, chResources]) => {
-                // Render even if empty to show the channel exists
                 return (
                   <div key={chName} className="flex items-center relative z-10 min-h-[40px] border-b border-slate-50 last:border-0 py-2">
                     <div className="w-56 shrink-0 pr-4">
@@ -524,19 +540,34 @@ const ImplementationGantt = ({ resources, channels }) => {
   );
 };
 
-const EstimatorWizard = ({ user, pricing }) => {
+const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [showBreakdown, setShowBreakdown] = useState(false); 
   
-  const [client, setClient] = useState({ name: '', contact: '', teamMember: '', techStack: 'aws', region: 'US' });
-  const [channels, setChannels] = useState([]);
+  const [client, setClient] = useState({ 
+    name: '', 
+    email: '', 
+    teamMember: '', 
+    techStack: 'aws', 
+    region: 'US' // Default US
+  });
   
-  // Clean slate default
+  const [channels, setChannels] = useState([]);
   const [resources, setResources] = useState([]);
-
-  // Rate Band State
   const [rateBand, setRateBand] = useState('Medium');
+
+  // EFFECT: Update pricing when Region changes
+  useEffect(() => {
+    if (client.region && REGIONAL_PRICING[client.region]) {
+      setGlobalPricing(REGIONAL_PRICING[client.region]);
+    }
+  }, [client.region, setGlobalPricing]);
+
+  // EFFECT: Update Document Title
+  useEffect(() => {
+    document.title = "CX Cost Calculator";
+  }, []);
 
   // --- CALCULATIONS ENGINE ---
   const calculations = useMemo(() => {
@@ -546,7 +577,6 @@ const EstimatorWizard = ({ user, pricing }) => {
     let totalInfraCost = 0;
 
     channels.forEach(ch => {
-      // (Tech calc logic same as before...)
       const containedVol = ch.volume * (ch.containment / 100);
       const liveVol = ch.volume - containedVol;
       const modelPricing = BEDROCK_MODELS[ch.bedrockModel || 'sonnet'];
@@ -564,13 +594,10 @@ const EstimatorWizard = ({ user, pricing }) => {
         const translateRate = hasTranslate ? pricing.translate_voice_min : 0;
         const assistRate = hasAgentAssist ? pricing.agent_assist_voice_min : 0;
         
-        // Base logic
         totalVoiceCost += liveVol * ch.aht * (baseRate + analyticsRate + assistRate + translateRate);
         
         if (hasBot) {
-           // Bot consumes carriage (base) + translate if active
-           const botCarriage = pricing.voice_per_min + (hasTelephony ? pricing.telephony_per_min : 0) + (hasTranslate ? pricing.translate_voice_min : 0);
-           totalVoiceCost += containedVol * 2.0 * botCarriage; 
+           totalVoiceCost += containedVol * 2.0 * (baseRate + translateRate); 
            totalAiCost += ch.volume * ch.lexTurns * pricing.lex_speech_turn;
         }
         if (hasBedrock) {
@@ -611,6 +638,7 @@ const EstimatorWizard = ({ user, pricing }) => {
     const totalTechMonthly = totalVoiceCost + totalDigitalCost + totalAiCost + totalInfraCost;
 
     const rateMultiplier = RATE_BANDS[rateBand] || 1.0;
+    
     const implCost = resources.reduce((acc, r) => {
       const role = DEFAULT_ROLES.find(role => role.id === r.roleId);
       if (!role) return acc;
@@ -690,8 +718,8 @@ const EstimatorWizard = ({ user, pricing }) => {
 
   const exportCSV = () => {
     let csv = "Client,Metric,Value\n";
-    csv += `${client.name},Total Monthly,$${calculations.totalTechMonthly.toFixed(2)}\n`;
-    csv += `${client.name},Implementation,$${calculations.implCost.toFixed(2)}\n`;
+    csv += `${client.name},Total Monthly,${pricing.currency}${calculations.totalTechMonthly.toFixed(2)}\n`;
+    csv += `${client.name},Implementation,${pricing.currency}${calculations.implCost.toFixed(2)}\n`;
     csv += `\nIMPLEMENTATION PLAN (Band: ${rateBand})\nRole,Channel,Phase,Weeks,Qty\n`;
     resources.forEach(r => {
        const role = DEFAULT_ROLES.find(dr => dr.id === r.roleId);
@@ -722,17 +750,17 @@ const EstimatorWizard = ({ user, pricing }) => {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Lead Contact</label>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Prepared By (Email)</label>
           <input 
-            type="text" 
+            type="email" 
             className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-            placeholder="e.g., John Doe (CTO)"
-            value={client.contact}
-            onChange={(e) => setClient({...client, contact: e.target.value})}
+            placeholder="e.g., your.name@company.com"
+            value={client.email}
+            onChange={(e) => setClient({...client, email: e.target.value})}
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Prepared By (Team Member)</label>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Prepared By (Name)</label>
           <input 
             type="text" 
             className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
@@ -794,7 +822,6 @@ const EstimatorWizard = ({ user, pricing }) => {
         </div>
       </div>
       <div className="space-y-6">
-        {/* ... (Existing Step 2 Channel Cards Logic remains unchanged) ... */}
         {channels.map((ch, index) => (
           <div key={ch.id} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden transition-all hover:shadow-md">
             <div className={`p-4 flex flex-col md:flex-row gap-4 md:items-center justify-between ${ch.type === 'Voice' ? 'bg-blue-50' : ch.type === 'Chat' ? 'bg-green-50' : 'bg-purple-50'}`}>
@@ -820,6 +847,7 @@ const EstimatorWizard = ({ user, pricing }) => {
               </button>
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* (Inputs preserved from previous version) */}
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Monthly Volume</label>
                 <div className="mt-2 flex items-center gap-2">
@@ -894,6 +922,7 @@ const EstimatorWizard = ({ user, pricing }) => {
                        ? 'bg-amber-50 border-amber-200' 
                        : 'bg-slate-50 border-slate-200 opacity-50 grayscale pointer-events-none'
                   }`}>
+                      {/* Bedrock inputs... */}
                       <div className="flex justify-between items-start mb-4">
                          <div>
                             <label className="text-sm font-bold text-slate-800 flex items-center gap-2">
@@ -916,6 +945,7 @@ const EstimatorWizard = ({ user, pricing }) => {
                           ))}
                         </select>
                       </div>
+                      {/* ... other Bedrock inputs (system, context) ... */}
                       <div className="mb-4">
                          <div className="flex justify-between mb-1">
                             <span className="text-xs font-semibold text-slate-600">System Complexity</span>
@@ -1140,7 +1170,7 @@ const EstimatorWizard = ({ user, pricing }) => {
                     />
                   </td>
                   <td className="p-3 text-right font-mono text-slate-600 font-bold">
-                    ${totalCost.toLocaleString(undefined, {maximumFractionDigits:0})}
+                    {pricing.currency}{totalCost.toLocaleString(undefined, {maximumFractionDigits:0})}
                   </td>
                   <td className="p-3 text-center">
                     <button onClick={() => removeResource(res.id)} className="text-slate-300 hover:text-red-500 transition-colors">
@@ -1161,6 +1191,7 @@ const EstimatorWizard = ({ user, pricing }) => {
 
   const renderStep4 = () => (
     <div className="space-y-8 animate-fadeIn">
+      {/* ... (Keep Step 4 Summary cards and chart) ... */}
       <div className="text-center mb-8">
         <h2 className="text-2xl font-bold text-slate-800">Estimation Complete</h2>
         <p className="text-slate-500">Review the Total Cost of Ownership (TCO) below.</p>
@@ -1169,16 +1200,16 @@ const EstimatorWizard = ({ user, pricing }) => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
           <p className="text-slate-500 text-sm font-medium uppercase tracking-wide">One-Time Implementation</p>
-          <p className="text-3xl font-bold text-slate-800 mt-2">${calculations.implCost.toLocaleString()}</p>
+          <p className="text-3xl font-bold text-slate-800 mt-2">{pricing.currency}{calculations.implCost.toLocaleString()}</p>
           <span className="text-xs bg-slate-100 px-2 py-1 rounded mt-2">Band: {rateBand}</span>
         </div>
         <div className="bg-blue-50 p-6 rounded-xl border border-blue-100 shadow-sm flex flex-col items-center justify-center text-center">
           <p className="text-blue-600 text-sm font-medium uppercase tracking-wide">Monthly Tech Run</p>
-          <p className="text-3xl font-bold text-blue-900 mt-2">${calculations.totalTechMonthly.toLocaleString(undefined, {maximumFractionDigits:0})}</p>
+          <p className="text-3xl font-bold text-blue-900 mt-2">{pricing.currency}{calculations.totalTechMonthly.toLocaleString(undefined, {maximumFractionDigits:0})}</p>
         </div>
         <div className="bg-slate-900 p-6 rounded-xl shadow-lg flex flex-col items-center justify-center text-center text-white">
           <p className="text-slate-400 text-sm font-medium uppercase tracking-wide">Year 1 TCO</p>
-          <p className="text-3xl font-bold mt-2">${calculations.oneYearTCO.toLocaleString(undefined, {maximumFractionDigits:0})}</p>
+          <p className="text-3xl font-bold mt-2">{pricing.currency}{calculations.oneYearTCO.toLocaleString(undefined, {maximumFractionDigits:0})}</p>
         </div>
       </div>
 
@@ -1193,8 +1224,8 @@ const EstimatorWizard = ({ user, pricing }) => {
           ]}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
             <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
-            <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} tickFormatter={(val) => `$${val/1000}k`} />
-            <RechartsTooltip cursor={{fill: '#f1f5f9'}} formatter={(val) => `$${val.toLocaleString()}`} />
+            <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} tickFormatter={(val) => `${pricing.currency}${val/1000}k`} />
+            <RechartsTooltip cursor={{fill: '#f1f5f9'}} formatter={(val) => `${pricing.currency}${val.toLocaleString()}`} />
             <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={50} />
           </BarChart>
         </ResponsiveContainer>
@@ -1283,11 +1314,6 @@ const Dashboard = ({ user }) => (
 export default function App() {
   const [activeTab, setActiveTab] = useState('calculator'); 
   const [user, setUser] = useState(null);
-  
-  // Use REGIONAL_PRICING based on some default, but it will be overridden by EstimatorWizard local state if we pass it down
-  // Actually, pricing is better managed inside Wizard now that it's region-dependent.
-  // But for the 'Knowledge Base' tab to work, we need a "global" pricing state.
-  // Let's initialize with US pricing.
   const [pricing, setPricing] = useState(REGIONAL_PRICING['US']);
 
   useEffect(() => {
@@ -1306,7 +1332,6 @@ export default function App() {
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
       <main className="flex-1 ml-20 lg:ml-64 transition-all duration-300">
         {activeTab === 'dashboard' && <Dashboard user={user} />}
-        {/* Pass setPricing to Wizard so it can update global pricing based on region selection */}
         {activeTab === 'calculator' && <EstimatorWizard user={user} pricing={pricing} setGlobalPricing={setPricing} />}
         {activeTab === 'knowledge' && <KnowledgeBase pricing={pricing} />}
       </main>
