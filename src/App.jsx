@@ -5,7 +5,7 @@ import {
 import { 
   Calculator, Users, FileText, Settings, Save, Download, 
   Plus, Trash2, ChevronRight, CheckCircle, Database, LayoutDashboard,
-  Mic, MessageSquare, Mail, Server, Cpu, Activity, Zap, BrainCircuit, Edit2, Globe, Boxes, Info, X, HelpCircle, Calendar, Link as LinkIcon, Layers
+  Mic, MessageSquare, Mail, Server, Cpu, Activity, Zap, BrainCircuit, Edit2, Globe, Boxes, Info, X, HelpCircle, Calendar, Link as LinkIcon, Layers, ArrowLeft, ArrowRight
 } from 'lucide-react';
 
 // Firebase imports
@@ -145,15 +145,14 @@ const RATE_BANDS = {
 const Sidebar = ({ activeTab, setActiveTab }) => (
   <div className="w-20 lg:w-64 bg-slate-900 text-white flex flex-col h-screen fixed left-0 top-0 transition-all duration-300 z-50">
     <div className="p-4 flex items-center gap-3 border-b border-slate-700">
-      {/* UPDATED: Firstsource Logo */}
       <div className="bg-white p-2 rounded-lg flex items-center justify-center shrink-0">
         <img 
           src="https://logo.clearbit.com/firstsource.com" 
           alt="Firstsource" 
-          className="h-10 w-auto object-contain"
+          className="h-14 w-auto object-contain"
           onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'block'; }} 
         />
-        <Calculator size={24} className="text-blue-600 hidden" /> {/* Fallback */}
+        <Calculator size={24} className="text-blue-600 hidden" />
       </div>
       <span className="font-bold text-lg hidden lg:block leading-tight">CX Cost Calculator</span>
     </div>
@@ -220,155 +219,162 @@ const KnowledgeBase = ({ pricing }) => (
   </div>
 );
 
-const CostBreakdownModal = ({ isOpen, onClose, channels, pricing, calculations }) => {
-  if (!isOpen) return null;
-
+const CostBreakdownSidebar = ({ isOpen, onClose, channels, pricing }) => {
   const curr = pricing.currency || '$';
 
   return (
-    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fadeIn">
-      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
-        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-2xl">
+    <div 
+      className={`fixed top-0 right-0 z-[50] h-full w-[400px] bg-white shadow-2xl border-l border-slate-200 transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
+    >
+      <div className="flex flex-col h-full">
+        {/* Header */}
+        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <div>
             <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
               <Calculator size={20} className="text-blue-600"/> Cost DNA
             </h3>
-            <p className="text-sm text-slate-500">Unit-level calculation transparency</p>
+            <p className="text-sm text-slate-500 font-medium">Real-time unit breakdown</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-500">
+          <button 
+            onClick={onClose} 
+            className="p-2 bg-white hover:bg-slate-200 text-slate-500 rounded-full transition-colors border border-slate-200 shadow-sm"
+            title="Close Sidebar"
+          >
             <X size={20} />
           </button>
         </div>
-        <div className="overflow-y-auto p-6 space-y-6">
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50">
           {channels.length === 0 ? (
-            <p className="text-center text-slate-400 py-8">No channels to calculate yet.</p>
+            <div className="text-center text-slate-400 py-12 flex flex-col items-center">
+              <Info size={32} className="mb-2 opacity-50"/>
+              <p>Add channels to see cost breakdown.</p>
+            </div>
           ) : channels.map((ch, idx) => {
             const liveVol = ch.volume * ((100 - ch.containment) / 100);
-            const containedVol = ch.volume - liveVol;
             const modelPricing = BEDROCK_MODELS[ch.bedrockModel || 'sonnet'];
             
             return (
-              <div key={ch.id} className="border border-slate-200 rounded-xl p-4">
-                <div className="flex justify-between items-center mb-3">
-                  <h4 className="font-bold text-slate-700 flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-xs">{idx + 1}</span>
-                    {ch.name} <span className="text-xs font-normal text-slate-400">({ch.type})</span>
+              <div key={ch.id} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
+                  <h4 className="font-bold text-slate-800 flex items-center gap-2 text-base">
+                    <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-extrabold">{idx + 1}</span>
+                    {ch.name} <span className="text-xs font-normal text-slate-400 uppercase tracking-wider ml-1">({ch.type})</span>
                   </h4>
-                  <span className="text-xs bg-slate-100 px-2 py-1 rounded text-slate-600 font-mono">
-                    Vol: {ch.volume.toLocaleString()}
+                  <span className="text-xs bg-slate-100 px-2 py-1 rounded text-slate-600 font-mono font-medium">
+                    {ch.volume.toLocaleString()} vol
                   </span>
                 </div>
-                <div className="space-y-3 text-sm text-slate-600 font-mono">
-                  
+                
+                <div className="space-y-3 text-sm text-slate-600">
                   {/* --- VOICE CALCULATIONS --- */}
                   {ch.type === 'Voice' && (
-                    <div className="flex justify-between items-baseline border-b border-slate-50 pb-2">
-                      <span>• Voice Svc: {ch.volume.toLocaleString()} calls × {ch.aht} min</span>
+                    <div className="flex justify-between items-center group">
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-slate-700">Voice Transport</span>
+                        <span className="text-[10px] text-slate-400 font-medium">{ch.aht}m/call</span>
+                      </div>
                       <div className="text-right">
-                        <span className="text-xs text-slate-400 mr-2">@ {curr}{pricing.voice_per_min}/min</span>
-                        <span>{curr}{(ch.volume * ch.aht * pricing.voice_per_min).toFixed(2)}</span>
+                        <span className="block font-mono font-bold text-slate-800">{curr}{(ch.volume * ch.aht * pricing.voice_per_min).toFixed(2)}</span>
+                        <span className="text-[10px] text-slate-400 group-hover:text-blue-500 transition-colors">@ {curr}{pricing.voice_per_min}/min</span>
                       </div>
                     </div>
                   )}
 
                   {/* --- CHAT CALCULATIONS --- */}
                   {ch.type === 'Chat' && (
-                    <div className="flex justify-between items-baseline border-b border-slate-50 pb-2">
-                      <span>• Chat Svc: {liveVol.toLocaleString()} live × 15 msgs</span>
+                    <div className="flex justify-between items-center group">
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-slate-700">Chat Messaging</span>
+                        <span className="text-[10px] text-slate-400 font-medium">{liveVol.toLocaleString()} live sessions</span>
+                      </div>
                       <div className="text-right">
-                        <span className="text-xs text-slate-400 mr-2">@ {curr}{pricing.chat_per_msg}/msg</span>
-                        <span>{curr}{(liveVol * 15 * pricing.chat_per_msg).toFixed(2)}</span>
+                        <span className="block font-mono font-bold text-slate-800">{curr}{(liveVol * 15 * pricing.chat_per_msg).toFixed(2)}</span>
+                        <span className="text-[10px] text-slate-400 group-hover:text-blue-500 transition-colors">@ {curr}{pricing.chat_per_msg}/msg</span>
                       </div>
                     </div>
                   )}
 
                   {/* --- TRANSLATION --- */}
                   {ch.features.includes('translate') && (
-                    <div className="flex justify-between items-baseline text-indigo-600 border-b border-indigo-50 pb-2">
-                      {ch.type === 'Voice' ? (
-                        <>
-                          <span>• Translate: {liveVol.toLocaleString()} calls × {ch.aht} min</span>
-                          <div className="text-right">
-                            <span className="text-xs text-indigo-300 mr-2">@ {curr}{pricing.translate_voice_min}/min</span>
-                            <span>{curr}{(liveVol * ch.aht * pricing.translate_voice_min).toFixed(2)}</span>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <span>• Translate: {liveVol.toLocaleString()} live × 15 msgs × 1.5 units</span>
-                          <div className="text-right">
-                            <span className="text-xs text-indigo-300 mr-2">@ {curr}{pricing.translate_chat_unit}/unit</span>
-                            <span>{curr}{(liveVol * 15 * 1.5 * pricing.translate_chat_unit).toFixed(2)}</span>
-                          </div>
-                        </>
-                      )}
+                    <div className="flex justify-between items-center group">
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-indigo-700">Real-time Translation</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="block font-mono font-bold text-indigo-700">
+                          {curr}{ch.type === 'Voice' 
+                            ? (liveVol * ch.aht * pricing.translate_voice_min).toFixed(2)
+                            : (liveVol * 15 * 1.5 * pricing.translate_chat_unit).toFixed(2)
+                          }
+                        </span>
+                      </div>
                     </div>
                   )}
 
                   {/* --- TELEPHONY --- */}
                   {ch.features.includes('telephony') && (
-                    <div className="flex justify-between items-baseline text-blue-600 border-b border-blue-50 pb-2">
-                      <span>• Telephony: {liveVol.toLocaleString()} live calls × {ch.aht} min</span>
-                      <div className="text-right">
-                        <span className="text-xs text-blue-300 mr-2">@ {curr}{pricing.telephony_per_min}/min</span>
-                        <span>{curr}{(liveVol * ch.aht * pricing.telephony_per_min).toFixed(2)}</span>
+                    <div className="flex justify-between items-center group">
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-blue-700">Telephony / DID</span>
                       </div>
-                    </div>
-                  )}
-
-                  {/* --- EMAIL --- */}
-                  {ch.features.includes('emailMgmt') && (
-                    <div className="flex justify-between items-baseline text-blue-600 border-b border-blue-50 pb-2">
-                      <span>• Standard Routing: {ch.volume.toLocaleString()} msgs (In+Out)</span>
                       <div className="text-right">
-                        <span className="text-xs text-blue-300 mr-2">@ {curr}{pricing.email_per_msg} x 2</span>
-                        <span>{curr}{(ch.volume * pricing.email_per_msg * 2).toFixed(2)}</span>
+                        <span className="block font-mono font-bold text-blue-700">{curr}{(liveVol * ch.aht * pricing.telephony_per_min).toFixed(2)}</span>
                       </div>
                     </div>
                   )}
 
                   {/* --- LEX BOT --- */}
                   {(ch.features.includes('convIVR') || ch.features.includes('chatbot')) && (
-                    <div className="flex justify-between items-baseline text-indigo-600 border-b border-indigo-50 pb-2">
-                      <span>• Lex IVR: {ch.volume.toLocaleString()} sess × {ch.lexTurns} turns</span>
+                    <div className="flex justify-between items-center group">
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-purple-700">Lex Automation</span>
+                        <span className="text-[10px] text-slate-400 font-medium">{ch.lexTurns} turns avg</span>
+                      </div>
                       <div className="text-right">
-                        <span className="text-xs text-indigo-300 mr-2">@ {curr}{ch.type === 'Voice' ? pricing.lex_speech_turn : pricing.lex_text_turn}/turn</span>
-                        <span>{curr}{(ch.volume * ch.lexTurns * (ch.type === 'Voice' ? pricing.lex_speech_turn : pricing.lex_text_turn)).toFixed(2)}</span>
+                        <span className="block font-mono font-bold text-purple-700">
+                          {curr}{(ch.volume * ch.lexTurns * (ch.type === 'Voice' ? pricing.lex_speech_turn : pricing.lex_text_turn)).toFixed(2)}
+                        </span>
                       </div>
                     </div>
                   )}
 
                   {/* --- BEDROCK --- */}
                   {ch.features.includes('bedrock') && (
-                    <div className="flex flex-col bg-amber-50 p-2 rounded text-amber-800">
-                       <div className="flex justify-between text-xs font-bold mb-1">
-                         <span>• Bedrock ({modelPricing.label})</span>
+                    <div className="bg-amber-50 p-3 rounded-lg border border-amber-100 mt-2">
+                       <div className="flex justify-between mb-1">
+                         <span className="text-xs font-bold text-amber-800">Bedrock ({modelPricing.label})</span>
                        </div>
-                       <div className="flex justify-between text-xs pl-2">
-                         <span>In: {ch.volume.toLocaleString()} × {ch.lexTurns || 1} turns × {(ch.contextChars + (ch.systemComplexity * 1000))/4} tokens</span>
-                         <span>@ ${modelPricing.input}/1k</span>
-                       </div>
-                       <div className="flex justify-between text-xs pl-2 border-b border-amber-200 pb-1 mb-1">
-                         <span>Out: Est 20% of input</span>
-                         <span>@ ${modelPricing.output}/1k</span>
-                       </div>
-                        <div className="flex justify-between font-bold">
-                          <span>Total GenAI Cost</span>
-                          <span>${(
+                       <div className="flex justify-between items-end">
+                         <span className="text-[10px] text-amber-700 opacity-80 font-medium">
+                           {((ch.volume * (ch.lexTurns || 1) * ((ch.contextChars + (ch.systemComplexity * 1000))/4))).toLocaleString()} tot. tokens
+                         </span>
+                         <span className="font-mono font-bold text-amber-800">
+                           {curr}{(
                             (ch.volume * (ch.lexTurns || 1) * ((ch.contextChars + (ch.systemComplexity * 1000))/4/1000) * modelPricing.input) + 
                             (ch.volume * (ch.lexTurns || 1) * ((ch.contextChars + (ch.systemComplexity * 1000))/4/1000 * 0.2) * modelPricing.output) 
-                          ).toFixed(2)}</span>
-                        </div>
+                          ).toFixed(2)}
+                         </span>
+                       </div>
                     </div>
                   )}
 
-                  {/* --- AGENT ASSIST --- */}
+                  {/* --- AGENT ASSIST (Explicitly Shown) --- */}
                   {ch.features.includes('agentAssist') && (
-                    <div className="flex justify-between items-baseline text-purple-600">
-                       <span>• Agent Assist: {liveVol.toLocaleString()} live × {ch.type === 'Voice' ? `${ch.aht}m` : '15 msgs'}</span>
+                    <div className="flex justify-between items-center group mt-2 pt-2 border-t border-slate-100">
+                       <div className="flex flex-col">
+                         <span className="font-semibold text-emerald-700 flex items-center gap-1">
+                           <BrainCircuit size={12}/> Agent Assist
+                         </span>
+                         <span className="text-[10px] text-emerald-600/70 font-medium">
+                           Uncontained Vol: {liveVol.toLocaleString()}
+                         </span>
+                       </div>
                        <div className="text-right">
-                         <span className="text-xs text-purple-300 mr-2">@ {curr}{ch.type === 'Voice' ? pricing.agent_assist_voice_min : pricing.agent_assist_chat_msg}/unit</span>
-                         <span>{curr}{(liveVol * (ch.type === 'Voice' ? ch.aht : 15) * (ch.type === 'Voice' ? pricing.agent_assist_voice_min : pricing.agent_assist_chat_msg)).toFixed(2)}</span>
+                         <span className="block font-mono font-bold text-emerald-700">
+                           {curr}{(liveVol * (ch.type === 'Voice' ? ch.aht : 15) * (ch.type === 'Voice' ? pricing.agent_assist_voice_min : pricing.agent_assist_chat_msg)).toFixed(2)}
+                         </span>
                        </div>
                     </div>
                   )}
@@ -377,17 +383,12 @@ const CostBreakdownModal = ({ isOpen, onClose, channels, pricing, calculations }
             );
           })}
         </div>
-        <div className="p-6 bg-slate-50 border-t border-slate-200 rounded-b-2xl">
-          <div className="flex justify-between items-center text-lg font-bold text-slate-800">
-            <span>Total Monthly Run Rate</span>
-            <span>{curr}{calculations.totalTechMonthly.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-          </div>
-        </div>
       </div>
     </div>
   );
 };
 
+// ... (ImplementationGantt remains the same) ...
 const ImplementationGantt = ({ resources, channels }) => {
   const [viewMode, setViewMode] = useState('resource'); 
 
@@ -550,21 +551,19 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
     email: '', 
     teamMember: '', 
     techStack: 'aws', 
-    region: 'US' // Default US
+    region: 'US' 
   });
   
   const [channels, setChannels] = useState([]);
   const [resources, setResources] = useState([]);
   const [rateBand, setRateBand] = useState('Medium');
 
-  // EFFECT: Update pricing when Region changes
   useEffect(() => {
     if (client.region && REGIONAL_PRICING[client.region]) {
       setGlobalPricing(REGIONAL_PRICING[client.region]);
     }
   }, [client.region, setGlobalPricing]);
 
-  // EFFECT: Update Document Title
   useEffect(() => {
     document.title = "CX Cost Calculator";
   }, []);
@@ -800,13 +799,8 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
 
   const renderStep2 = () => (
     <div className="space-y-8 animate-fadeIn">
-      <CostBreakdownModal 
-        isOpen={showBreakdown} 
-        onClose={() => setShowBreakdown(false)}
-        channels={channels}
-        pricing={pricing}
-        calculations={calculations}
-      />
+      {/* MOVED: Feature Checklist is now here (after basic inputs) -> This comment was from previous prompt, actual rendered code is below */}
+      
       <div className="flex justify-between items-center">
         <h3 className="text-xl font-bold text-slate-800">Tech Inputs & Channels</h3>
         <div className="flex gap-2">
@@ -847,7 +841,6 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
               </button>
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* (Inputs preserved from previous version) */}
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Monthly Volume</label>
                 <div className="mt-2 flex items-center gap-2">
@@ -890,8 +883,37 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
                   />
                 </div>
               )}
+
+              {/* Feature Checklist */}
+              <div className="md:col-span-3 border-t border-slate-100 pt-4 mt-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3 block">AWS CCaaS Features</label>
+                <div className="flex flex-wrap gap-3">
+                  {Object.entries(FEATURES_CATALOG).map(([key, feature]) => {
+                    if (!feature.channels.includes(ch.type)) return null;
+                    const isSelected = ch.features.includes(key);
+                    const Icon = feature.icon;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => toggleFeature(ch.id, key)}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-all ${
+                          isSelected 
+                            ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm ring-1 ring-blue-200' 
+                            : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className={`p-1 rounded-full ${isSelected ? 'bg-blue-200' : 'bg-slate-200'}`}>
+                           <Icon size={12} />
+                        </div>
+                        {feature.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               
-              <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+              {/* Conditional Settings (Bot/GenAI) */}
+              <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
                   {(ch.features.includes('convIVR') || ch.features.includes('chatbot')) && (
                     <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100 relative">
                       <div className="flex justify-between items-start mb-3">
@@ -920,9 +942,8 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
                   <div className={`p-4 rounded-lg border transition-all duration-300 ${
                      ch.features.includes('bedrock') 
                        ? 'bg-amber-50 border-amber-200' 
-                       : 'bg-slate-50 border-slate-200 opacity-50 grayscale pointer-events-none'
-                  }`}>
-                      {/* Bedrock inputs... */}
+                       : 'bg-slate-50 border-slate-200 opacity-50 grayscale pointer-events-none hidden' // Hide if not active to save space
+                  } ${ch.features.includes('bedrock') ? 'block' : 'hidden'}`}>
                       <div className="flex justify-between items-start mb-4">
                          <div>
                             <label className="text-sm font-bold text-slate-800 flex items-center gap-2">
@@ -945,7 +966,6 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
                           ))}
                         </select>
                       </div>
-                      {/* ... other Bedrock inputs (system, context) ... */}
                       <div className="mb-4">
                          <div className="flex justify-between mb-1">
                             <span className="text-xs font-semibold text-slate-600">System Complexity</span>
@@ -987,32 +1007,6 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
                   </div>
               </div>
             </div>
-            <div className="px-6 pb-6 pt-2 border-t border-slate-100">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3 block">AWS CCaaS Features</label>
-              <div className="flex flex-wrap gap-3">
-                {Object.entries(FEATURES_CATALOG).map(([key, feature]) => {
-                  if (!feature.channels.includes(ch.type)) return null;
-                  const isSelected = ch.features.includes(key);
-                  const Icon = feature.icon;
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => toggleFeature(ch.id, key)}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-all ${
-                        isSelected 
-                          ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm ring-1 ring-blue-200' 
-                          : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
-                      }`}
-                    >
-                      <div className={`p-1 rounded-full ${isSelected ? 'bg-blue-200' : 'bg-slate-200'}`}>
-                         <Icon size={12} />
-                      </div>
-                      {feature.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
           </div>
         ))}
         {channels.length === 0 && (
@@ -1020,34 +1014,6 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
             <p>No channels added. Add Voice, Chat, or Email to begin estimation.</p>
           </div>
         )}
-      </div>
-      <div className="bg-slate-900 text-white p-6 rounded-xl flex items-center justify-between sticky bottom-4 shadow-xl z-10">
-        <div>
-          <p className="text-slate-400 text-xs uppercase tracking-wider">Total Monthly Tech Cost</p>
-          <div className="flex items-center gap-3">
-             <p className="text-2xl font-bold font-mono">{pricing.currency}{calculations.totalTechMonthly.toLocaleString(undefined, {maximumFractionDigits: 0})}</p>
-             <button 
-               onClick={() => setShowBreakdown(true)}
-               className="flex items-center gap-1 bg-slate-700 hover:bg-slate-600 text-xs px-3 py-1 rounded-full transition-colors"
-             >
-                <Info size={14} /> Breakdown
-             </button>
-          </div>
-        </div>
-        <div className="flex gap-4 text-right">
-           <div>
-             <span className="block text-xs text-slate-500">Voice</span>
-             <span className="font-mono text-sm">{pricing.currency}{calculations.voiceCost.toFixed(0)}</span>
-           </div>
-           <div>
-             <span className="block text-xs text-slate-500">Digital</span>
-             <span className="font-mono text-sm">{pricing.currency}{calculations.digitalCost.toFixed(0)}</span>
-           </div>
-           <div>
-             <span className="block text-xs text-slate-500">AI/Bot</span>
-             <span className="font-mono text-sm text-green-400">{pricing.currency}{calculations.aiCost.toFixed(0)}</span>
-           </div>
-        </div>
       </div>
     </div>
   );
@@ -1119,7 +1085,6 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
                       {DEFAULT_ROLES.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
                     </select>
                   </td>
-                  {/* Channel Link Dropdown */}
                   <td className="p-3">
                     <select
                       value={res.channelId}
@@ -1132,7 +1097,6 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
                       ))}
                     </select>
                   </td>
-                  {/* Phase Dropdown */}
                   <td className="p-3">
                     <select
                       value={res.phase}
@@ -1243,54 +1207,128 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
   );
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-8">
-      {/* Stepper Header */}
-      <div className="flex items-center justify-between mb-8 px-4 relative">
-        <div className="absolute left-0 w-full h-1 bg-slate-200 top-5 z-0 hidden lg:block" style={{marginLeft: '20px', width: 'calc(100% - 40px)'}}></div>
-        {[
-          { num: 1, label: 'Client Info' },
-          { num: 2, label: 'Tech & Channels' },
-          { num: 3, label: 'Resourcing' },
-          { num: 4, label: 'Review & TCO' },
-        ].map((s) => (
-          <div key={s.num} className="flex flex-col items-center relative z-10 bg-slate-50 px-2">
-            <button 
-              onClick={() => setStep(s.num)}
-              className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all duration-300 ${
-                step >= s.num ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-200 text-slate-400'
-              }`}
-            >
-              {step > s.num ? <CheckCircle size={20} /> : s.num}
-            </button>
-            <span className={`text-xs mt-2 font-medium ${step >= s.num ? 'text-blue-700' : 'text-slate-400'}`}>{s.label}</span>
+    <div className="max-w-7xl mx-auto p-4 lg:p-8 flex">
+      {/* Main Content Wrapper with Transition for Sidebar Push */}
+      <div className={`flex-1 transition-all duration-300 ease-in-out ${showBreakdown ? 'translate-x-[-200px]' : 'translate-x-0'}`}>
+      
+        {/* Stepper Header */}
+        <div className="flex items-center justify-between mb-8 px-4 relative">
+          <div className="absolute left-0 w-full h-1 bg-slate-200 top-5 z-0 hidden lg:block" style={{marginLeft: '20px', width: 'calc(100% - 40px)'}}></div>
+          {[
+            { num: 1, label: 'Client Info' },
+            { num: 2, label: 'Tech & Channels' },
+            { num: 3, label: 'Resourcing' },
+            { num: 4, label: 'Review & TCO' },
+          ].map((s) => (
+            <div key={s.num} className="flex flex-col items-center relative z-10 bg-slate-50 px-2">
+              <button 
+                onClick={() => setStep(s.num)}
+                className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all duration-300 ${
+                  step >= s.num ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-200 text-slate-400'
+                }`}
+              >
+                {step > s.num ? <CheckCircle size={20} /> : s.num}
+              </button>
+              <span className={`text-xs mt-2 font-medium ${step >= s.num ? 'text-blue-700' : 'text-slate-400'}`}>{s.label}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-xl border border-slate-100 p-6 min-h-[500px]">
+          {step === 1 && renderStep1()}
+          {step === 2 && renderStep2()}
+          {step === 3 && renderStep3()}
+          {step === 4 && renderStep4()}
+        </div>
+
+        {/* Spacer for fixed bottom bar */}
+        <div className="h-32"></div>
+
+        {/* Consolidated Bottom Bar - Centered Relative to THIS container */}
+        <div className={`fixed bottom-0 left-20 right-0 transition-all duration-300 ease-in-out ${showBreakdown ? 'translate-x-[-200px]' : 'translate-x-0'} z-40`}>
+          <div className="w-full bg-slate-900/95 backdrop-blur-xl text-white px-8 py-4 rounded-t-2xl shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.3)] border-t border-slate-700/50 flex items-center justify-between max-w-7xl mx-auto">
+             
+             {/* Total Cost */}
+             <div className="flex items-center gap-8">
+               <div>
+                 <p className="text-slate-400 text-[10px] uppercase tracking-widest font-bold mb-1">Total Monthly Tech</p>
+                 <div className="flex items-baseline gap-2">
+                    <span className="text-4xl font-extrabold font-mono tracking-tighter text-white drop-shadow-sm">
+                      {pricing.currency}{calculations.totalTechMonthly.toLocaleString(undefined, {maximumFractionDigits: 0})}
+                    </span>
+                 </div>
+               </div>
+               
+               {/* Metrics Breakdown (Hidden on mobile) */}
+               <div className="hidden lg:flex gap-8 border-l border-slate-700 pl-8">
+                 <div>
+                   <span className="block text-[10px] text-slate-500 uppercase font-extrabold mb-1">Voice</span>
+                   <span className="font-mono font-bold text-lg text-slate-300">{pricing.currency}{calculations.voiceCost.toFixed(0)}</span>
+                 </div>
+                 <div>
+                   <span className="block text-[10px] text-slate-500 uppercase font-extrabold mb-1">Digital</span>
+                   <span className="font-mono font-bold text-lg text-slate-300">{pricing.currency}{calculations.digitalCost.toFixed(0)}</span>
+                 </div>
+                 <div>
+                   <span className="block text-[10px] text-slate-500 uppercase font-extrabold mb-1">AI/Bot</span>
+                   <span className="font-mono font-bold text-lg text-emerald-400">{pricing.currency}{calculations.aiCost.toFixed(0)}</span>
+                 </div>
+               </div>
+             </div>
+
+             {/* Navigation & Actions */}
+             <div className="flex items-center gap-3">
+                {/* Back Button */}
+                <button 
+                  onClick={() => setStep(s => Math.max(1, s - 1))}
+                  disabled={step === 1}
+                  className={`p-3 rounded-xl transition-all border border-slate-700 ${step === 1 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-slate-800 text-slate-300'}`}
+                >
+                  <ArrowLeft size={20} />
+                </button>
+
+                {/* Next Button */}
+                {step < 4 ? (
+                  <button 
+                    onClick={() => setStep(s => Math.min(4, s + 1))}
+                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-3 rounded-xl shadow-lg hover:shadow-blue-500/25 active:scale-95 transition-all"
+                  >
+                    <span>Next Step</span>
+                    <ArrowRight size={18} />
+                  </button>
+                ) : (
+                  <button 
+                    onClick={saveDeal}
+                    disabled={loading}
+                    className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-3 rounded-xl shadow-lg hover:shadow-emerald-500/25 active:scale-95 transition-all"
+                  >
+                    <Save size={18} />
+                    <span>{loading ? 'Saving...' : 'Save Deal'}</span>
+                  </button>
+                )}
+
+                {/* Cost DNA Toggle */}
+                <button 
+                  onClick={() => setShowBreakdown(!showBreakdown)}
+                  className={`p-3 rounded-xl border border-slate-600 transition-all ${showBreakdown ? 'bg-slate-700 text-white' : 'hover:bg-slate-800 text-slate-400'}`}
+                  title="Toggle Cost DNA"
+                >
+                   <Info size={20} />
+                </button>
+             </div>
           </div>
-        ))}
+        </div>
+
       </div>
 
-      <div className="bg-white rounded-2xl shadow-xl border border-slate-100 p-6 min-h-[500px]">
-        {step === 1 && renderStep1()}
-        {step === 2 && renderStep2()}
-        {step === 3 && renderStep3()}
-        {step === 4 && renderStep4()}
-      </div>
-
-      <div className="flex justify-between mt-8 px-4">
-        <button 
-          onClick={() => setStep(s => Math.max(1, s - 1))}
-          disabled={step === 1}
-          className={`px-6 py-2 rounded-lg font-medium transition-colors ${step === 1 ? 'opacity-0' : 'text-slate-600 hover:bg-slate-100'}`}
-        >
-          Back
-        </button>
-        {step < 4 && (
-          <button 
-            onClick={() => setStep(s => Math.min(4, s + 1))}
-            className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-all hover:pr-4"
-          >
-            Next Step <ChevronRight size={18} />
-          </button>
-        )}
-      </div>
+      {/* Sidebar Component (Outside the main wrapper but inside the flex container) */}
+      <CostBreakdownSidebar 
+        isOpen={showBreakdown} 
+        onClose={() => setShowBreakdown(false)}
+        channels={channels}
+        pricing={pricing}
+        calculations={calculations}
+      />
     </div>
   );
 };
@@ -1330,7 +1368,7 @@ export default function App() {
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
-      <main className="flex-1 ml-20 lg:ml-64 transition-all duration-300">
+      <main className="flex-1 ml-20 lg:ml-64 transition-all duration-300 relative overflow-x-hidden">
         {activeTab === 'dashboard' && <Dashboard user={user} />}
         {activeTab === 'calculator' && <EstimatorWizard user={user} pricing={pricing} setGlobalPricing={setPricing} />}
         {activeTab === 'knowledge' && <KnowledgeBase pricing={pricing} />}
