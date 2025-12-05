@@ -6,7 +6,7 @@ import {
   Calculator, Users, FileText, Settings, Save, Download, 
   Plus, Trash2, ChevronRight, CheckCircle, Database, LayoutDashboard,
   Mic, MessageSquare, Mail, Server, Cpu, Activity, Zap, BrainCircuit, Edit2, Globe, Boxes, Info, X, HelpCircle, Calendar, Link as LinkIcon, Layers, ArrowLeft, ArrowRight,
-  Phone, MessageSquarePlus
+  Phone, MessageSquarePlus, Lock
 } from 'lucide-react';
 
 // Firebase imports
@@ -15,6 +15,14 @@ import {
   getFirestore, collection, addDoc, getDocs, doc, setDoc, query, orderBy, onSnapshot 
 } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
+
+// --- CONFIGURATION ---
+// Set this to FALSE for your Production deployment
+// Set this to TRUE for your Dev/Staging deployment
+// Check for Vite (import.meta.env) or Create-React-App (process.env) variables
+const ENABLE_EXPERIMENTAL_FEATURES = 
+  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_ENABLE_EXPERIMENTAL === 'true') || 
+  (typeof process !== 'undefined' && process.env && process.env.REACT_APP_ENABLE_EXPERIMENTAL === 'true');
 
 // --- FIREBASE SETUP ---
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
@@ -110,13 +118,19 @@ const FEATURES_CATALOG = {
   connect_voice_usage: { label: 'Connect Voice Usage', channels: ['Voice'], icon: Phone },
   telephony: { label: 'Telephony DID/Toll-Free', channels: ['Voice'], icon: Zap },
   connect_chat_usage: { label: 'Connect Chat Usage', channels: ['Chat'], icon: MessageSquarePlus },
-  translate: { label: 'Real-time Translation', channels: ['Voice', 'Chat'], icon: Globe },
+  
+  // Experimental Features
+  translate: { label: 'Real-time Translation', channels: ['Voice', 'Chat'], icon: Globe, isExperimental: true },
+  
   convIVR: { label: 'Conversational IVR (Lex)', channels: ['Voice'], icon: Cpu },
   chatbot: { label: 'Chatbot Automation', channels: ['Chat'], icon: Cpu },
   emailMgmt: { label: 'Email Management (Routing)', channels: ['Email'], icon: Mail },
   contactLens: { label: 'Contact Lens (Analytics)', channels: ['Voice', 'Chat'], icon: Activity },
   agentAssist: { label: 'Agent Assist (Q/Wisdom)', channels: ['Voice', 'Chat'], icon: BrainCircuit },
-  bedrock: { label: 'Agentic Framework (Bedrock)', channels: ['Voice', 'Chat', 'Email'], icon: Server },
+  
+  // Experimental Features
+  bedrock: { label: 'Agentic Framework (Bedrock)', channels: ['Voice', 'Chat', 'Email'], icon: Server, isExperimental: true },
+  
   storage: { label: 'Recording / Archiving', channels: ['Voice', 'Chat', 'Email'], icon: Database },
 };
 
@@ -891,6 +905,11 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
   };
 
   const toggleFeature = (channelId, featureKey) => {
+    // Prevent toggling if it's an experimental feature and we are in prod mode
+    const catalog = client.techStack === 'yellow' ? FEATURES_CATALOG_YELLOW_AI : FEATURES_CATALOG;
+    const featureDef = catalog[featureKey];
+    if (featureDef && featureDef.isExperimental && !ENABLE_EXPERIMENTAL_FEATURES) return;
+
     const channel = channels.find(c => c.id === channelId);
     if (!channel) return;
     const newFeatures = channel.features.includes(featureKey)
@@ -1119,21 +1138,25 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
                   {Object.entries(client.techStack === 'yellow' ? FEATURES_CATALOG_YELLOW_AI : FEATURES_CATALOG).map(([key, feature]) => {
                     if (!feature.channels.includes(ch.type)) return null;
                     const isSelected = ch.features.includes(key);
+                    const isExperimental = feature.isExperimental;
+                    const isDisabled = isExperimental && !ENABLE_EXPERIMENTAL_FEATURES;
                     const Icon = feature.icon;
                     return (
                       <button
                         key={key}
                         onClick={() => toggleFeature(ch.id, key)}
+                        disabled={isDisabled}
                         className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-all ${
                           isSelected 
                             ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm ring-1 ring-blue-200' 
                             : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
-                        }`}
+                        } ${isDisabled ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
                       >
                         <div className={`p-1 rounded-full ${isSelected ? 'bg-blue-200' : 'bg-slate-200'}`}>
-                           <Icon size={12} />
+                           {isDisabled ? <Lock size={12}/> : <Icon size={12} />}
                         </div>
                         {feature.label}
+                        {isDisabled && <span className="text-[9px] bg-slate-100 text-slate-500 px-1 rounded ml-1">Beta</span>}
                       </button>
                     );
                   })}
