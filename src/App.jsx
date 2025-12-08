@@ -17,9 +17,12 @@ import {
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
 
 // --- CONFIGURATION ---
+// --- CONFIGURATION ---
 const ENABLE_EXPERIMENTAL_FEATURES = 
-  (typeof process !== 'undefined' && process.env && (process.env.REACT_APP_ENABLE_EXPERIMENTAL === 'true' || process.env.VITE_ENABLE_EXPERIMENTAL === 'true')) ||
-  true; 
+  (typeof process !== 'undefined' && process.env && (
+    process.env.REACT_APP_ENABLE_EXPERIMENTAL === 'true' || 
+    process.env.VITE_ENABLE_EXPERIMENTAL === 'true'
+  )) || false; // <--- CHANGED TO FALSE
 
 // --- FIREBASE SETUP ---
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
