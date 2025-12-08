@@ -19,10 +19,12 @@ import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken }
 // --- CONFIGURATION ---
 // --- CONFIGURATION ---
 const ENABLE_EXPERIMENTAL_FEATURES = 
-  (typeof process !== 'undefined' && process.env && (
-    process.env.REACT_APP_ENABLE_EXPERIMENTAL === 'true' || 
-    process.env.VITE_ENABLE_EXPERIMENTAL === 'true'
-  )) || false; // <--- CHANGED TO FALSE
+  // Check 1: Vite (Most likely what you are using)
+  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_ENABLE_EXPERIMENTAL === 'true') || 
+  // Check 2: Create React App / Webpack
+  (typeof process !== 'undefined' && process.env && process.env.REACT_APP_ENABLE_EXPERIMENTAL === 'true') || 
+  // Default: Disabled
+  false;
 
 // --- FIREBASE SETUP ---
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
