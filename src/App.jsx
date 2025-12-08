@@ -1613,6 +1613,9 @@ const EstimatorWizard = ({ user, pricing, setGlobalPricing }) => {
                         <div className="flex flex-wrap gap-3">
                             {Object.entries(client.techStack === 'yellow' ? FEATURES_CATALOG_YELLOW_AI :client.techStack === 'kore' ? FEATURES_CATALOG_KORE : FEATURES_CATALOG).map(([key, feature]) => {
                                 if (!feature.channels.includes(ch.type)) return null;
+                                // 2. EXPERIMENTAL CHECK (Add this logic)
+                                // If feature is experimental AND the global flag is false, do not render it.
+                                if (feature.isExperimental && !ENABLE_EXPERIMENTAL_FEATURES) return null;
                                 const isSelected = ch.features.includes(key);
                                 const Icon = feature.icon;
                                 return (
