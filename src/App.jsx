@@ -161,65 +161,86 @@ const EstimatorWizard = ({ user }) => {
     const chatVol = (globalParams.Chat.volume || 0);
     const chatLive = chatVol * (1 - (globalParams.Chat.containment || 0) / 100);
 
-    // Platform Metadata
-    if (requirements.solutions.some(s => ['civr', 'chatbot'].includes(s))) {
+    // Helper to check if this stack (vendor) is selected for a specific solution
+    const isVendorFor = (solId) => solutionVendors[solId] === stackId;
+    const isVendorForAny = (solIds) => solIds.some(id => solutionVendors[id] === stackId);
+
+    // Platform Metadata - only show if any automation logic is present for this vendor? 
+    // Actually, "Platform Complexity" and "Total Billable Minutes" are info-only metrics, 
+    // better to show them only once or attached to the relevant vendor. 
+    // For now, let's include them if this vendor handles ANY Voice/Chat automation.
+    const handlesAutomation = isVendorForAny(['civr', 'chatbot']);
+
+    if (handlesAutomation) {
       breakdown.push({ channel: 'System', label: 'Platform Complexity', val: (vData.complexity || 5), math: String(vData.complexity || 5) + " Turns per Interaction" });
     }
-    breakdown.push({ channel: 'System', label: 'Total Billable Minutes', val: totalVolMin, math: Math.round(totalVolMin).toLocaleString() + " mins/mo" });
+    // "Total Billable Minutes" is useful context if this vendor handles Voice.
+    if (requirements.channels.includes('Voice') && isVendorForAny(['telephony', 'civr', 'agentAssist', 'analytics', 'qaAuto'])) {
+      breakdown.push({ channel: 'System', label: 'Total Billable Minutes', val: totalVolMin, math: Math.round(totalVolMin).toLocaleString() + " mins/mo" });
+    }
 
     if (stackId === 'aws') {
       if (requirements.channels.includes('Voice')) {
         let vSub = 0;
-        const usage = totalLiveMin * p.aws_connect_channel_per_min + (vData.inboundVol - inLive) * (vData.inboundAht || 0) * p.aws_connect_channel_per_min;
-        vSub += usage;
-        breakdown.push({ channel: 'Voice', label: 'Voice Channel Usage', val: usage, math: `$${p.aws_connect_channel_per_min}/min` });
+
+        // AWS Connect Usage: Charged if AWS is Telephony OR CIVR provider (Connect is the base)
+        if (isVendorFor('telephony') || isVendorFor('civr')) {
+          const usage = totalLiveMin * p.aws_connect_channel_per_min + (vData.inboundVol - inLive) * (vData.inboundAht || 0) * p.aws_connect_channel_per_min;
+          vSub += usage;
+          breakdown.push({ channel: 'Voice', label: 'Voice Channel Usage', val: usage, math: `$${p.aws_connect_channel_per_min}/min` });
+        }
 
         if (requirements.solutions.includes('telephony') || requirements.solutions.includes('civr')) {
-          const inTele = (vData.inboundVol || 0) * (vData.inboundAht || 0) * p.aws_connect_did_inbound;
-          const outTele = (vData.outboundVol || 0) * (vData.outboundAht || 0) * p.aws_connect_did_outbound;
-          vSub += (inTele + outTele);
-          breakdown.push({ channel: 'Voice', label: 'DID Inbound', val: inTele, math: `$${p.aws_connect_did_inbound}/min` });
-          if (vData.outboundVol > 0) breakdown.push({ channel: 'Voice', label: 'DID Outbound', val: outTele, math: `$${p.aws_connect_did_outbound}/min` });
+          // DID Costs: Usually tied to Telephony provider.
+          if (isVendorFor('telephony')) {
+            const inTele = (vData.inboundVol || 0) * (vData.inboundAht || 0) * p.aws_connect_did_inbound;
+            const outTele = (vData.outboundVol || 0) * (vData.outboundAht || 0) * p.aws_connect_did_outbound;
+            vSub += (inTele + outTele);
+            breakdown.push({ channel: 'Voice', label: 'DID Inbound', val: inTele, math: `$${p.aws_connect_did_inbound}/min` });
+            if (vData.outboundVol > 0) breakdown.push({ channel: 'Voice', label: 'DID Outbound', val: outTele, math: `$${p.aws_connect_did_outbound}/min` });
+          }
         }
-        if (requirements.solutions.includes('civr')) {
+
+        if (requirements.solutions.includes('civr') && isVendorFor('civr')) {
           const lex = totalCalls * (vData.complexity || 5) * p.lex_speech_turn;
           vSub += lex;
           breakdown.push({ channel: 'Voice', label: 'Lex Voice Automation', val: lex, math: `$${p.lex_speech_turn}/turn` });
         }
+
         voice += vSub;
-        breakdown.push({ channel: 'Voice', label: 'Voice Total Cost', val: vSub, math: 'Sum of Voice drivers', isTotal: true });
+        if (vSub > 0) breakdown.push({ channel: 'Voice', label: 'Voice Total Cost', val: vSub, math: 'Sum of Voice drivers', isTotal: true });
 
-        if (requirements.solutions.includes('analytics') || requirements.solutions.includes('qaAuto')) {
-          // Check if AWS is the active vendor for these capabilities before charging
-          const isAwsAnalytics = (!solutionVendors['analytics'] || solutionVendors['analytics'] === 'aws');
-          const isAwsQa = (!solutionVendors['qaAuto'] || solutionVendors['qaAuto'] === 'aws');
-
-          if (requirements.solutions.includes('analytics') && isAwsAnalytics) {
-            const clCost = totalVolMin * p.contact_lens_voice_min;
-            infra += clCost;
-            breakdown.push({ channel: 'Voice', label: 'Real Time Analytics', val: clCost, math: `$${p.contact_lens_voice_min}/min` });
-          }
-          if (requirements.solutions.includes('qaAuto') && isAwsQa) {
-            const qaFee = (globalParams.fte || 0) * 12;
-            infra += qaFee;
-            breakdown.push({ channel: 'Voice', label: 'QA Automation extras', val: qaFee, math: '$12.00/agent' });
-          }
+        if (requirements.solutions.includes('analytics') && isVendorFor('analytics')) {
+          const clCost = totalVolMin * p.contact_lens_voice_min;
+          infra += clCost;
+          breakdown.push({ channel: 'Voice', label: 'Real Time Analytics', val: clCost, math: `$${p.contact_lens_voice_min}/min` });
+        }
+        if (requirements.solutions.includes('qaAuto') && isVendorFor('qaAuto')) {
+          const qaFee = (globalParams.fte || 0) * 12;
+          infra += qaFee;
+          breakdown.push({ channel: 'Voice', label: 'QA Automation extras', val: qaFee, math: '$12.00/agent' });
         }
       }
+
       if (requirements.channels.includes('Chat')) {
         let cSub = 0;
-        const sess = chatLive * 15 * p.aws_connect_chat_msg;
-        cSub += sess;
-        breakdown.push({ channel: 'Chat', label: 'AWS Chat Channel', val: sess, math: `$${p.aws_connect_chat_msg}/msg` });
-        if (requirements.solutions.includes('chatbot')) {
+        // AWS Chat Channel: If AWS is Chatbot OR LiveChat
+        if (isVendorFor('chatbot') || isVendorFor('liveChat')) {
+          const sess = chatLive * 15 * p.aws_connect_chat_msg;
+          cSub += sess;
+          breakdown.push({ channel: 'Chat', label: 'AWS Chat Channel', val: sess, math: `$${p.aws_connect_chat_msg}/msg` });
+        }
+
+        if (requirements.solutions.includes('chatbot') && isVendorFor('chatbot')) {
           const lex = chatVol * (globalParams.Chat.complexity || 8) * p.lex_text_turn;
           cSub += lex;
           breakdown.push({ channel: 'Chat', label: 'Lex Chatbot Automation', val: lex, math: `$${p.lex_text_turn}/turn` });
         }
         chat += cSub;
-        breakdown.push({ channel: 'Chat', label: 'Chat Total Cost', val: cSub, math: 'Sum of Chat drivers', isTotal: true });
+        if (cSub > 0) breakdown.push({ channel: 'Chat', label: 'Chat Total Cost', val: cSub, math: 'Sum of Chat drivers', isTotal: true });
       }
-      if (requirements.channels.includes('Email') && requirements.solutions.includes('emailAuto')) {
+
+      if (requirements.channels.includes('Email') && requirements.solutions.includes('emailAuto') && isVendorFor('emailAuto')) {
         const eVol = globalParams.Email.volume || 0;
         const eSub = (eVol * 2 * p.bedrock_sonnet_input_1k) + (eVol * 1 * p.bedrock_sonnet_output_1k);
         email += eSub;
@@ -227,53 +248,104 @@ const EstimatorWizard = ({ user }) => {
         breakdown.push({ channel: 'Email', label: 'Email Total Cost', val: eSub, math: 'Sum of Email drivers', isTotal: true });
       }
     } else if (stackId === 'kore') {
-      fixed = vp.kore.platform_fee_annual / 12;
-      oneTime = vp.kore.expert_service_one_time;
-      if (requirements.channels.includes('Voice')) {
+      const handlesAny = isVendorForAny(['civr', 'chatbot', 'agentAssist']);
+      if (handlesAny) {
+        fixed = vp.kore.platform_fee_annual / 12;
+        oneTime = vp.kore.expert_service_one_time;
+        breakdown.push({ channel: 'System', label: 'Annual Platform Fee', val: fixed, math: 'Pro-rata monthly' });
+      }
+
+      if (requirements.channels.includes('Voice') && isVendorFor('civr')) {
         const cost = (vData.inboundVol || 0) * Math.ceil((vData.inboundAht || 1) / 15) * vp.kore.civr_session;
         voice += cost;
         breakdown.push({ channel: 'Voice', label: 'Kore Voice Sessions', val: cost, math: `$${vp.kore.civr_session}/sess` });
         breakdown.push({ channel: 'Voice', label: 'Voice Total Cost', val: cost, math: 'Sum of Voice drivers', isTotal: true });
       }
-      if (requirements.channels.includes('Chat') && (requirements.solutions.includes('chatbot') || requirements.solutions.includes('liveChat'))) {
+
+      // Kore can do Chatbot
+      if (requirements.channels.includes('Chat') && isVendorFor('chatbot')) {
         const cost = chatVol * vp.kore.chatbot_session;
         chat += cost;
         breakdown.push({ channel: 'Chat', label: 'Kore Digital Sessions', val: cost, math: `$${vp.kore.chatbot_session}/sess` });
         breakdown.push({ channel: 'Chat', label: 'Chat Total Cost', val: cost, math: 'Sum of Chat drivers', isTotal: true });
       }
-      breakdown.push({ channel: 'System', label: 'Annual Platform Fee', val: fixed, math: 'Pro-rata monthly' });
     } else if (stackId === 'five9') {
-      const rate = requirements.channels.includes('Voice') ? vp.five9.voice_seat : vp.five9.digital_seat;
-      const seatTotal = (globalParams.fte || 0) * rate;
-      if (requirements.channels.includes('Voice')) voice += seatTotal; else chat += seatTotal;
-      breakdown.push({ channel: 'System', label: 'Five9 Extras', val: seatTotal, math: `$${rate}/agent` });
-      breakdown.push({ channel: 'System', label: 'Channel Total', val: seatTotal, math: 'Unified seat', isTotal: true });
+      const usesVoice = requirements.channels.includes('Voice') && (isVendorFor('telephony') || isVendorFor('liveChat') || isVendorFor('agentAssist')); // Telephony usually implies seats
+      const usesDigital = requirements.channels.includes('Chat') && isVendorFor('liveChat');
+
+      let seatTotal = 0;
+      // Simplified Logic: If Five9 is selected for Telephony, charge Voice Seat.
+      if (usesVoice) {
+        seatTotal = (globalParams.fte || 0) * vp.five9.voice_seat;
+        voice += seatTotal;
+      } else if (usesDigital) {
+        seatTotal = (globalParams.fte || 0) * vp.five9.digital_seat;
+        chat += seatTotal;
+      }
+
+      if (seatTotal > 0) {
+        const rate = usesVoice ? vp.five9.voice_seat : vp.five9.digital_seat;
+        breakdown.push({ channel: 'System', label: 'Five9 Extras', val: seatTotal, math: `$${rate}/agent` });
+        breakdown.push({ channel: 'System', label: 'Channel Total', val: seatTotal, math: 'Unified seat', isTotal: true });
+      }
     } else if (stackId === 'observe') {
-      const obsCost = (globalParams.fte || 0) * vp.observe.per_agent_monthly;
-      voice += obsCost;
-      breakdown.push({ channel: 'Voice', label: 'Observe Analytics', val: obsCost, math: `$${vp.observe.per_agent_monthly}/agent` });
-      breakdown.push({ channel: 'Voice', label: 'Analytics Total', val: obsCost, math: 'Observe license', isTotal: true });
+      if (isVendorFor('qaAuto') || isVendorFor('analytics')) {
+        const obsCost = (globalParams.fte || 0) * vp.observe.per_agent_monthly;
+        voice += obsCost;
+        breakdown.push({ channel: 'Voice', label: 'Observe Analytics', val: obsCost, math: `$${vp.observe.per_agent_monthly}/agent` });
+        breakdown.push({ channel: 'Voice', label: 'Analytics Total', val: obsCost, math: 'Observe license', isTotal: true });
+      }
     } else if (stackId === 'yellow') {
-      oneTime = vp.yellow.platform_fee;
-      if (requirements.channels.includes('Voice')) {
+      const handlesAny = isVendorForAny(['civr', 'chatbot', 'agentAssist']);
+      if (handlesAny) oneTime = vp.yellow.platform_fee;
+
+      if (requirements.channels.includes('Voice') && isVendorFor('civr')) {
         const cost = (vData.inboundVol || 0) * vp.yellow.civr_session;
         voice += cost;
         breakdown.push({ channel: 'Voice', label: 'Yellow Voice Sessions', val: cost, math: `$${vp.yellow.civr_session}/sess` });
         breakdown.push({ channel: 'Voice', label: 'Voice Total Cost', val: cost, math: 'Section Total', isTotal: true });
       }
-      if (requirements.channels.includes('Chat')) {
+      if (requirements.channels.includes('Chat') && isVendorFor('chatbot')) {
         const cost = chatVol * vp.yellow.chatbot_session;
         chat += cost;
         breakdown.push({ channel: 'Chat', label: 'Yellow Digital Sessions', val: cost, math: `$${vp.yellow.chatbot_session}/sess` });
         breakdown.push({ channel: 'Chat', label: 'Chat Total Cost', val: cost, math: 'Section Total', isTotal: true });
+      }
+    } else if (stackId === 'cresta') {
+      if (isVendorFor('agentAssist')) {
+        const cost = totalVolMin * vp.cresta.ai_assist_min;
+        voice += cost;
+        breakdown.push({ channel: 'Voice', label: 'Cresta Agent Assist', val: cost, math: `$${vp.cresta.ai_assist_min}/min` });
       }
     }
     return { total: voice + chat + email + fixed + infra, voice, chat, email, fixed, oneTime, infra, breakdown };
   };
 
   const finalFinancials = useMemo(() => {
-    if (!client.techStack) return null;
-    const tech = calculateStackSpecific(client.techStack);
+    // Determine all active vendors from selection
+    const activeVendors = Array.from(new Set(Object.values(solutionVendors || {}).filter(Boolean)));
+    if (activeVendors.length === 0) return null;
+
+    // Aggregate costs from all active vendors
+    let totalTech = { total: 0, voice: 0, chat: 0, email: 0, fixed: 0, oneTime: 0, infra: 0, breakdown: [] };
+
+    activeVendors.forEach(vId => {
+      const vCosts = calculateStackSpecific(vId);
+      if (vCosts) {
+        totalTech.total += vCosts.total;
+        totalTech.voice += vCosts.voice;
+        totalTech.chat += vCosts.chat;
+        totalTech.email += vCosts.email;
+        totalTech.fixed += vCosts.fixed;
+        totalTech.oneTime += vCosts.oneTime;
+        totalTech.infra += vCosts.infra;
+        // Tag breakdown items with vendor label for clarity?
+        const labeledBreakdown = vCosts.breakdown.map(b => ({ ...b, sourceVendor: vId }));
+        totalTech.breakdown.push(...labeledBreakdown);
+      }
+    });
+
+    const tech = totalTech;
     const mult = rateBand === 'Low' ? 0.9 : rateBand === 'High' ? 1.15 : 1.0;
     const impl = resources.reduce((acc, r) => {
       const role = DEFAULT_ROLES.find(dr => dr.id === r.roleId);
@@ -288,7 +360,7 @@ const EstimatorWizard = ({ user }) => {
       year3TCO: tech.total * 36 + tech.oneTime + impl + support * 2,
       year5TCO: tech.total * 60 + tech.oneTime + impl + support * 4
     };
-  }, [client.techStack, resources, rateBand, requirements, globalParams]);
+  }, [solutionVendors, resources, rateBand, requirements, globalParams]);
 
   const selectedVendorIds = useMemo(() => {
     const ids = Object.values(solutionVendors || {});
@@ -701,8 +773,8 @@ const EstimatorWizard = ({ user }) => {
                   }
                 }}
                 className={`px-6 py-4 rounded-[16px] border-2 font-black transition-all flex items-center gap-4 ${active
-                    ? 'border-amber-500 bg-amber-50 text-amber-700 shadow-md scale-[1.01]'
-                    : 'border-slate-100 bg-white text-slate-500 hover:bg-slate-50'
+                  ? 'border-amber-500 bg-amber-50 text-amber-700 shadow-md scale-[1.01]'
+                  : 'border-slate-100 bg-white text-slate-500 hover:bg-slate-50'
                   }`}
               >
                 {active ? <CheckCircle size={20} className="text-amber-600" /> : <div className="w-5 h-5 border-2 border-slate-200 rounded-full" />}
@@ -766,8 +838,8 @@ const EstimatorWizard = ({ user }) => {
                           setSolutionVendors(prev => ({ ...prev, [sol.id]: vId }))
                         }
                         className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] uppercase tracking-[0.25em] transition-all ${isActive
-                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm'
-                            : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                          ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm'
+                          : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
                           }`}
                       >
                         <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-50">
@@ -904,7 +976,7 @@ const EstimatorWizard = ({ user }) => {
   };
 
   const renderStep3 = () => {
-    const tech = calculateStackSpecific(client.techStack);
+    const tech = finalFinancials; // Use aggregated financials
     // Build simple mapping of solutions to selected vendors
     const solutionVendorPairs = CAPABILITIES.solutions
       .filter(sol => requirements.solutions.includes(sol.id) && solutionVendors[sol.id])
@@ -1034,7 +1106,7 @@ const EstimatorWizard = ({ user }) => {
           </div>
           <div className="text-right relative z-10 font-black">
             <p className="text-[11px] font-black text-blue-300 uppercase tracking-widest mb-1.5">
-              Tech OPEX (baseline)
+              Monthly Tech Cost
             </p>
             <p className="text-3xl lg:text-4xl font-black font-mono tracking-tighter text-white">
               $ {tech?.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}
@@ -1236,6 +1308,7 @@ const EstimatorWizard = ({ user }) => {
           <div className="p-6 bg-slate-50 border border-slate-100 rounded-[48px] shadow-sm flex flex-col justify-center items-center text-center hover:shadow-md transition-all font-black">
             <p className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest font-black">Monthly Tech run cost</p>
             <p className="text-2xl font-black font-mono text-slate-900 font-black">$ {finalFinancials.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+            <p className="text-[10px] font-black text-slate-400 font-mono mt-1">Annual: $ {(finalFinancials.total * 12).toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
           </div>
           <div className="p-6 bg-slate-50 border border-slate-100 rounded-[48px] shadow-sm flex flex-col justify-center items-center text-center hover:shadow-md transition-all font-black">
             <p className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest font-black">Implementation cost (one time)</p>
@@ -1256,10 +1329,10 @@ const EstimatorWizard = ({ user }) => {
             <p className="text-[11px] font-black text-slate-400 uppercase mb-3 tracking-[0.2em] relative z-10 font-black font-black">3-Year roadmap TCO</p>
             <p className="text-5xl font-black font-mono text-blue-400 relative z-10 font-black font-black">$ {finalFinancials.year3TCO.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
           </div>
-          <div className={`p-10 border rounded-[56px] shadow-2xl flex flex-col justify-center items-center text-center relative overflow-hidden group font-black font-black font-black ${finalFinancials.isBest ? 'bg-emerald-50/50 border-emerald-300 font-black font-black' : 'bg-white border-slate-100'} font-black font-black`}>
-            <div className="absolute inset-0 bg-emerald-500/5 group-hover:bg-emerald-500/10 transition-colors font-black font-black" />
+          <div className="p-10 bg-slate-900 text-white rounded-[56px] shadow-2xl flex flex-col justify-center items-center text-center relative overflow-hidden group font-black font-black">
+            <div className="absolute inset-0 bg-emerald-600/5 group-hover:bg-emerald-600/10 transition-colors font-black font-black" />
             <p className="text-[11px] font-black text-slate-400 uppercase mb-3 tracking-[0.2em] relative z-10 font-black font-black font-black font-black">5-Year roadmap TCO</p>
-            <p className={`text-5xl font-black font-mono relative z-10 font-black ${finalFinancials.isBest ? 'text-emerald-600 font-black font-black' : 'text-slate-900 font-black'} font-black`}>$ {finalFinancials.year5TCO.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+            <p className="text-5xl font-black font-mono relative z-10 font-black text-emerald-400 font-black">$ {finalFinancials.year5TCO.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
           </div>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 font-black font-black font-black">
@@ -1317,7 +1390,7 @@ const EstimatorWizard = ({ user }) => {
       {/* Compact Stepper */}
       <div className="flex items-center justify-between mb-12 px-32 relative font-black font-black">
         <div className="absolute top-6 left-32 right-32 h-0.5 bg-slate-100 -z-0 font-black font-black font-black" />
-        {[{ n: 1, l: 'Discovery' }, { n: 2, l: 'Analysis' }, { n: 3, l: 'Execution' }, { n: 4, l: 'Portfolio' }].map(s => (
+        {[{ n: 1, l: 'Discovery' }, { n: 2, l: 'Analysis' }, { n: 3, l: 'Execution' }, { n: 4, l: 'Summary' }].map(s => (
           <div key={s.n} className="relative z-10 flex flex-col items-center font-black font-black font-black">
             <div className={`w-12 h-12 rounded-[22px] flex items-center justify-center font-black text-lg transition-all duration-500 font-black font-black font-black ${step >= s.n ? 'bg-blue-600 text-white shadow-2xl scale-110 font-black font-black font-black' : 'bg-white border-2 border-slate-100 text-slate-200 font-black font-black font-black'}`}>{step > s.n ? <Check size={24} /> : s.n}</div>
             <span className={`text-[10px] mt-4 font-black uppercase tracking-[0.4em] font-black font-black ${step >= s.n ? 'text-blue-700' : 'text-slate-200'}`}>{s.l}</span>
@@ -1363,7 +1436,7 @@ const EstimatorWizard = ({ user }) => {
               disabled={resources.length === 0}
               className="ml-auto bg-blue-600 text-white px-16 py-6 rounded-[32px] font-black uppercase tracking-[0.4em] text-[12px] flex items-center gap-5 hover:bg-blue-700 disabled:opacity-10 transition-all shadow-2xl active:scale-95 font-black"
             >
-              Finalize Portfolio <ArrowRight size={22} />
+              Finalize Summary <ArrowRight size={22} />
             </button>
           )}
         </div>
